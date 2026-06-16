@@ -1,0 +1,21 @@
+{
+  "selectedCharacter": "Chara1",
+  "showCharacter": true,
+  "characterScale": 100,
+  "bubbleScale": 100,
+  "windowPosition": {
+    "x": null,
+    "y": null
+  },
+  "bubblePosition": "right",
+  "autoStart": true,
+  "clickImageDuration": 2000,
+  "notificationMinutesBefore": 30,
+  "notificationOffsets": [
+    30,
+    0
+  ],
+  "useNativeNotifications": true,
+  "isMainWindowVisible": true,
+  "genreHistory": []
+}
