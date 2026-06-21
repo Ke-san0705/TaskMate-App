@@ -14,7 +14,7 @@ body:has(.settings-loading) {
 }
 
 .settings-panel {
-  width: min(100%, 760px);
+  width: min(100%, 1120px);
   margin: 0 auto;
   padding: 28px;
 }
@@ -93,15 +93,58 @@ body:has(.settings-loading) {
   background: rgba(255, 253, 248, 0.92);
 }
 
+.settings-panel .project-mode {
+  width: 100%;
+  max-height: none;
+  box-sizing: border-box;
+  margin-top: 18px;
+}
+
 .settings-toolbar {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(4, 1fr);
   gap: 10px;
   margin-top: 18px;
   padding: 7px;
   border: 1px solid #d8d0c4;
   border-radius: 16px;
   background: rgba(255, 253, 248, 0.7);
+}
+
+.behavior-options {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.behavior-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px;
+  border: 1px solid #e1d8cc;
+  border-radius: 14px;
+  background: #fbf7ef;
+}
+
+.behavior-option strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #2f2b27;
+  font-size: 14px;
+}
+
+.quiet-hours {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.quiet-hours__times {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 
 .settings-toolbar button {
@@ -336,6 +379,13 @@ body:has(.settings-loading) {
   margin-top: 16px;
 }
 
+.project-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
 .notification-channel {
   display: flex;
   align-items: center;
@@ -545,6 +595,7 @@ body:has(.settings-loading) {
   .task-form,
   .task-settings-item,
   .notification-rule,
+  .project-settings-grid,
   .task-genre-group > header,
   .settings-toolbar {
     grid-template-columns: 1fr;
@@ -552,6 +603,16 @@ body:has(.settings-loading) {
 
   .notification-channel {
     align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .behavior-option,
+  .quiet-hours__times {
+    align-items: flex-start;
+    grid-template-columns: 1fr;
+  }
+
+  .behavior-option {
     flex-direction: column;
   }
 

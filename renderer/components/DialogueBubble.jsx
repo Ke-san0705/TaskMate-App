@@ -41,7 +41,8 @@ export default function DialogueBubble({
       {notification ? (
         <div className="dialogue-bubble__notification">
           <strong>{notification.title}</strong>
-          <span>{notification.time}</span>
+          <span>{notification.time || notification.date || ''}</span>
+          {notification.message && <small>{notification.message}</small>}
           <button
             type="button"
             onClick={(event) => {

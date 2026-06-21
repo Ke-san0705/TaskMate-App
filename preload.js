@@ -27,8 +27,30 @@ const IPC = Object.freeze({
   SHOW_CHARACTER_MENU: 'taskmate:show-character-menu',
   ACKNOWLEDGE_NOTIFICATION: 'taskmate:acknowledge-notification',
   GET_ACTIVE_NOTIFICATION: 'taskmate:get-active-notification',
+  GET_BEHAVIOR_STATE: 'taskmate:get-behavior-state',
+  RECORD_INTERACTION: 'taskmate:record-interaction',
+  SET_FOCUS_TASK: 'taskmate:set-focus-task',
+  CLEAR_FOCUS_TASK: 'taskmate:clear-focus-task',
+  RESET_LIFE_STATE: 'taskmate:reset-life-state',
+  GET_PROJECT_STATE: 'taskmate:get-project-state',
+  CREATE_PROJECT_CATEGORY: 'taskmate:create-project-category',
+  UPDATE_PROJECT_CATEGORY: 'taskmate:update-project-category',
+  DELETE_PROJECT_CATEGORY: 'taskmate:delete-project-category',
+  CREATE_PROJECT: 'taskmate:create-project',
+  UPDATE_PROJECT: 'taskmate:update-project',
+  DELETE_PROJECT: 'taskmate:delete-project',
+  CREATE_PROJECT_MILESTONE: 'taskmate:create-project-milestone',
+  UPDATE_PROJECT_MILESTONE: 'taskmate:update-project-milestone',
+  DELETE_PROJECT_MILESTONE: 'taskmate:delete-project-milestone',
+  CREATE_PROJECT_TASK: 'taskmate:create-project-task',
+  UPDATE_PROJECT_TASK: 'taskmate:update-project-task',
+  DELETE_PROJECT_TASK: 'taskmate:delete-project-task',
+  COMPLETE_PROJECT_TASK: 'taskmate:complete-project-task',
+  ADD_PROJECT_TASK_TO_TODAY: 'taskmate:add-project-task-to-today',
   TASKS_UPDATED: 'taskmate:tasks-updated',
+  PROJECTS_UPDATED: 'taskmate:projects-updated',
   SETTINGS_UPDATED: 'taskmate:settings-updated',
+  BEHAVIOR_UPDATED: 'taskmate:behavior-updated',
   NOTIFICATION: 'taskmate:notification',
   NOTIFICATION_CLEARED: 'taskmate:notification-cleared',
   SHOW_TASK_LIST: 'taskmate:show-task-list'
@@ -69,8 +91,43 @@ contextBridge.exposeInMainWorld('taskMate', {
   acknowledgeNotification: (notificationId) =>
     ipcRenderer.invoke(IPC.ACKNOWLEDGE_NOTIFICATION, notificationId),
   getActiveNotification: () => ipcRenderer.invoke(IPC.GET_ACTIVE_NOTIFICATION),
+  getBehaviorState: () => ipcRenderer.invoke(IPC.GET_BEHAVIOR_STATE),
+  recordInteraction: (type, details) =>
+    ipcRenderer.invoke(IPC.RECORD_INTERACTION, type, details || {}),
+  setFocusTask: (taskId) => ipcRenderer.invoke(IPC.SET_FOCUS_TASK, taskId),
+  clearFocusTask: () => ipcRenderer.invoke(IPC.CLEAR_FOCUS_TASK),
+  resetLifeState: () => ipcRenderer.invoke(IPC.RESET_LIFE_STATE),
+  getProjectState: () => ipcRenderer.invoke(IPC.GET_PROJECT_STATE),
+  createProjectCategory: (categoryInput) =>
+    ipcRenderer.invoke(IPC.CREATE_PROJECT_CATEGORY, categoryInput),
+  updateProjectCategory: (categoryId, categoryInput) =>
+    ipcRenderer.invoke(IPC.UPDATE_PROJECT_CATEGORY, categoryId, categoryInput),
+  deleteProjectCategory: (categoryId) =>
+    ipcRenderer.invoke(IPC.DELETE_PROJECT_CATEGORY, categoryId),
+  createProject: (projectInput) => ipcRenderer.invoke(IPC.CREATE_PROJECT, projectInput),
+  updateProject: (projectId, projectInput) =>
+    ipcRenderer.invoke(IPC.UPDATE_PROJECT, projectId, projectInput),
+  deleteProject: (projectId, deleteMode) =>
+    ipcRenderer.invoke(IPC.DELETE_PROJECT, projectId, deleteMode),
+  createProjectMilestone: (milestoneInput) =>
+    ipcRenderer.invoke(IPC.CREATE_PROJECT_MILESTONE, milestoneInput),
+  updateProjectMilestone: (milestoneId, milestoneInput) =>
+    ipcRenderer.invoke(IPC.UPDATE_PROJECT_MILESTONE, milestoneId, milestoneInput),
+  deleteProjectMilestone: (milestoneId) =>
+    ipcRenderer.invoke(IPC.DELETE_PROJECT_MILESTONE, milestoneId),
+  createProjectTask: (taskInput) =>
+    ipcRenderer.invoke(IPC.CREATE_PROJECT_TASK, taskInput),
+  updateProjectTask: (taskId, taskInput) =>
+    ipcRenderer.invoke(IPC.UPDATE_PROJECT_TASK, taskId, taskInput),
+  deleteProjectTask: (taskId) => ipcRenderer.invoke(IPC.DELETE_PROJECT_TASK, taskId),
+  completeProjectTask: (taskId, completed = true) =>
+    ipcRenderer.invoke(IPC.COMPLETE_PROJECT_TASK, taskId, completed),
+  addProjectTaskToToday: (taskId, scheduledDate) =>
+    ipcRenderer.invoke(IPC.ADD_PROJECT_TASK_TO_TODAY, taskId, scheduledDate),
   onTasksUpdated: (callback) => subscribe(IPC.TASKS_UPDATED, callback),
+  onProjectsUpdated: (callback) => subscribe(IPC.PROJECTS_UPDATED, callback),
   onSettingsUpdated: (callback) => subscribe(IPC.SETTINGS_UPDATED, callback),
+  onBehaviorUpdated: (callback) => subscribe(IPC.BEHAVIOR_UPDATED, callback),
   onNotification: (callback) => subscribe(IPC.NOTIFICATION, callback),
   onNotificationCleared: (callback) => subscribe(IPC.NOTIFICATION_CLEARED, callback),
   onShowTaskList: (callback) => subscribe(IPC.SHOW_TASK_LIST, callback)

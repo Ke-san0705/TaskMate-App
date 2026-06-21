@@ -12,7 +12,9 @@ const {
 } = require('electron');
 
 const { createFileManager } = require('./main/fileManager');
+const { createBehaviorController } = require('./main/behaviorController');
 const { registerIpcHandlers } = require('./main/ipcHandlers');
+const { createLifeStateManager } = require('./main/lifeStateManager');
 const { createNotificationScheduler } = require('./main/notificationScheduler');
 const { createTaskWatcher } = require('./main/taskWatcher');
 const { createTrayManager } = require('./main/trayManager');
@@ -29,11 +31,20 @@ if (!hasSingleInstanceLock) {
   let scheduler;
   let watcher;
   let trayManager;
+  let lifeStateManager;
+  let behaviorController;
   let unregisterIpc;
   let resumeHandler;
   const activeNativeNotifications = new Set();
 
   function nativeNotificationText(notification) {
+    if (notification.source === 'project') {
+      const details = [notification.genre, notification.date].filter(Boolean).join(' / ');
+      return {
+        title: `TaskMate: ${notification.title}`,
+        body: [notification.message, details].filter(Boolean).join('\n')
+      };
+    }
     const timing =
       notification.minutes > 0
         ? `締切まであと${notification.minutes}分`
@@ -101,6 +112,12 @@ if (!hasSingleInstanceLock) {
     }
   }
 
+  async function applySettingsAndRecalculate(settings) {
+    await applySettings(settings);
+    await behaviorController?.recordInteraction('settings-change');
+    await behaviorController?.notifyTaskMutation('settings-change');
+  }
+
   async function setMainVisibility(visible) {
     if (visible) {
       windowManager.showMainWindow();
@@ -130,6 +147,12 @@ if (!hasSingleInstanceLock) {
     fileManager = createFileManager(app);
     await fileManager.ensureInitialFiles();
     const settings = await fileManager.getSettings();
+    lifeStateManager = createLifeStateManager({ fileManager });
+    await lifeStateManager.load();
+    const launchResult =
+      settings.relationshipMemoryEnabled === false
+        ? { reconnectEvent: null, gapDays: null }
+        : await lifeStateManager.registerApplicationLaunch();
 
     windowManager = createWindowManager({
       BrowserWindow,
@@ -147,11 +170,18 @@ if (!hasSingleInstanceLock) {
     });
     await windowManager.createMainWindow(settings);
 
+    behaviorController = createBehaviorController({
+      fileManager,
+      lifeStateManager,
+      windowManager
+    });
+
     scheduler = createNotificationScheduler({
       fileManager,
       onNotification: async (notification) => {
         const wasHidden = !windowManager.isMainWindowVisible();
         scheduler.setRestoreHiddenAfterQueue(wasHidden);
+        await behaviorController.setNotification(notification);
         windowManager.showNotification(notification);
         const currentSettings = await fileManager.getSettings();
         if (currentSettings.useNativeNotifications) {
@@ -160,6 +190,9 @@ if (!hasSingleInstanceLock) {
       },
       onQueueEmpty: () => {
         windowManager.clearNotification();
+        behaviorController.setNotification(null).catch((error) => {
+          console.error('通知終了後のふるまい更新に失敗しました。', error);
+        });
         if (scheduler.shouldRestoreHiddenAfterQueue()) {
           windowManager.hideMainWindow();
         }
@@ -173,7 +206,7 @@ if (!hasSingleInstanceLock) {
         await setMainVisibility(true);
         windowManager.showTaskList();
       },
-      reloadTasks: () => watcher?.reloadTasks(),
+      reloadTasks: () => watcher?.reloadProjects(),
       openSettings: () => windowManager.openSettingsWindow(),
       toggleAutoStart: async () => {
         const current = await fileManager.getSettings();
@@ -213,27 +246,49 @@ if (!hasSingleInstanceLock) {
       fileManager,
       windowManager,
       scheduler,
+      behaviorController,
       actions,
-      onSettingsChanged: applySettings
+      onSettingsChanged: applySettingsAndRecalculate
     });
 
     watcher = createTaskWatcher({
       fileManager,
       onTasksChanged: (result) => {
         windowManager.sendTasksUpdated(result);
+        behaviorController.notifyTaskMutation('tasks-changed').catch((error) => {
+          console.error('タスク更新後のふるまい再計算に失敗しました。', error);
+        });
         scheduler.checkNow().catch((error) => {
           console.error('タスク更新後の通知確認に失敗しました。', error);
         });
       },
       onSettingsChanged: async (nextSettings) => {
-        await applySettings(nextSettings);
+        await applySettingsAndRecalculate(nextSettings);
+      },
+      onProjectsChanged: async (result) => {
+        windowManager.sendProjectsUpdated(result);
+        await behaviorController.notifyTaskMutation('projects-changed');
+        await scheduler.checkNow();
       }
     });
     await watcher.start();
 
     await applySettings(settings);
     scheduler.start();
-    resumeHandler = () => scheduler.checkNow();
+    await behaviorController.start(
+      launchResult.reconnectEvent
+        ? {
+            reconnectEvent: launchResult.reconnectEvent,
+            gapDays: launchResult.gapDays
+          }
+        : null
+    );
+    resumeHandler = () => {
+      scheduler.checkNow();
+      behaviorController.recalculate('power-resume').catch((error) => {
+        console.error('スリープ復帰後のふるまい再計算に失敗しました。', error);
+      });
+    };
     powerMonitor.on('resume', resumeHandler);
 
     if (!settings.isMainWindowVisible) {
@@ -258,6 +313,7 @@ if (!hasSingleInstanceLock) {
     isQuitting = true;
     windowManager?.setQuitting(true);
     scheduler?.stop();
+    behaviorController?.stop();
     watcher?.stop();
     trayManager?.destroy();
     for (const notification of activeNativeNotifications) {

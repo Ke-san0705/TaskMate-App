@@ -14,7 +14,12 @@ function createPathResolver(app) {
     assetsRoot: path.join(resourceRoot, 'assets'),
     tasksFile: path.join(writableDataRoot, 'tasks.json'),
     settingsFile: path.join(writableDataRoot, 'settings.json'),
-    notificationStateFile: path.join(writableDataRoot, 'notification-state.json')
+    notificationStateFile: path.join(writableDataRoot, 'notification-state.json'),
+    lifeStateFile: path.join(writableDataRoot, 'life-state.json'),
+    projectCategoriesFile: path.join(writableDataRoot, 'categories.json'),
+    projectsFile: path.join(writableDataRoot, 'projects.json'),
+    milestonesFile: path.join(writableDataRoot, 'milestones.json'),
+    projectTasksFile: path.join(writableDataRoot, 'projectTasks.json')
   };
 }
 

@@ -4,6 +4,8 @@ import '../styles/TaskBubble.css';
 export default function TaskBubble({
   tasks,
   onComplete,
+  onFocusTask,
+  focusTaskId,
   onClose,
   onOpenSettings
 }) {
@@ -23,7 +25,12 @@ export default function TaskBubble({
           </button>
         </div>
       </header>
-      <TaskList tasks={tasks} onComplete={onComplete} />
+      <TaskList
+        tasks={tasks}
+        onComplete={onComplete}
+        onFocusTask={onFocusTask}
+        focusTaskId={focusTaskId}
+      />
     </section>
   );
 }

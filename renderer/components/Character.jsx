@@ -1,7 +1,24 @@
 import { useRef } from 'react';
 import '../styles/Character.css';
 
-const DRAG_THRESHOLD = 7;
+const DRAG_THRESHOLD = 14;
+const FAST_DRAG_THRESHOLD = 28;
+const DRAG_ARM_DELAY_MS = 120;
+
+function distanceFromStart(event, current) {
+  return Math.max(
+    Math.hypot(event.clientX - current.startClientX, event.clientY - current.startClientY),
+    Math.hypot(event.screenX - current.startScreenX, event.screenY - current.startScreenY)
+  );
+}
+
+function shouldStartDrag(event, current) {
+  const distance = distanceFromStart(event, current);
+  if (distance >= FAST_DRAG_THRESHOLD) {
+    return true;
+  }
+  return distance >= DRAG_THRESHOLD && performance.now() - current.startedAt >= DRAG_ARM_DELAY_MS;
+}
 
 export default function Character({ state, images, name, onClick, onContextMenu }) {
   const pointerState = useRef(null);
@@ -11,6 +28,8 @@ export default function Character({ state, images, name, onClick, onContextMenu 
     if (event.button !== 0) {
       return;
     }
+    event.preventDefault();
+    window.taskMate.setClickThrough(false);
     event.currentTarget.setPointerCapture(event.pointerId);
     pointerState.current = {
       pointerId: event.pointerId,
@@ -18,6 +37,7 @@ export default function Character({ state, images, name, onClick, onContextMenu 
       startClientY: event.clientY,
       startScreenX: event.screenX,
       startScreenY: event.screenY,
+      startedAt: performance.now(),
       dragging: false
     };
   }
@@ -27,11 +47,11 @@ export default function Character({ state, images, name, onClick, onContextMenu 
     if (!current || current.pointerId !== event.pointerId) {
       return;
     }
-    const distance = Math.hypot(
-      event.clientX - current.startClientX,
-      event.clientY - current.startClientY
-    );
-    if (!current.dragging && distance >= DRAG_THRESHOLD) {
+    if ((event.buttons & 1) !== 1) {
+      void finishPointer(event, { cancelled: true });
+      return;
+    }
+    if (!current.dragging && shouldStartDrag(event, current)) {
       current.dragging = true;
       window.taskMate.beginWindowDrag({
         x: current.startScreenX,
@@ -39,11 +59,12 @@ export default function Character({ state, images, name, onClick, onContextMenu 
       });
     }
     if (current.dragging) {
+      event.preventDefault();
       window.taskMate.moveWindowDrag({ x: event.screenX, y: event.screenY });
     }
   }
 
-  async function finishPointer(event) {
+  async function finishPointer(event, { cancelled = false } = {}) {
     const current = pointerState.current;
     if (!current || current.pointerId !== event.pointerId) {
       return;
@@ -53,8 +74,11 @@ export default function Character({ state, images, name, onClick, onContextMenu 
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
     if (current.dragging) {
+      event.preventDefault();
       await window.taskMate.endWindowDrag();
-    } else {
+    } else if (!cancelled) {
+      // 透過へ戻すタイミングはuseClickThroughへ集約します。
+      // キャラクター側で即時に戻すと、短い連続クリックの2回目が背面へ抜けるためです。
       onClick();
     }
   }
@@ -69,7 +93,7 @@ export default function Character({ state, images, name, onClick, onContextMenu 
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={finishPointer}
-      onPointerCancel={finishPointer}
+      onPointerCancel={(event) => finishPointer(event, { cancelled: true })}
       onContextMenu={(event) => {
         event.preventDefault();
         onContextMenu();

@@ -5,7 +5,18 @@ const FALLBACK_SETTINGS = {
   showCharacter: true,
   characterScale: 100,
   bubbleScale: 100,
-  clickImageDuration: 2000
+  clickImageDuration: 2000,
+  behaviorEnabled: true,
+  ambientEffects: true,
+  autonomousMovement: true,
+  completionReactions: true,
+  relationshipMemoryEnabled: true,
+  behaviorIntensity: 'normal',
+  quietHours: {
+    enabled: true,
+    start: '22:00',
+    end: '07:00'
+  }
 };
 
 export default function useCharacter() {

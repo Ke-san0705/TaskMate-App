@@ -1,180 +1,25 @@
-import { useEffect, useMemo, useState } from 'react';
-import { getLocalDateKey } from '../utils/dateUtils';
+import { useEffect, useState } from 'react';
+import ProjectManagementMode from './ProjectManagementMode';
 import '../styles/SettingsPanel.css';
 
-const DEFAULT_NOTIFICATION_OFFSETS = [30, 0];
-const MAX_NOTIFICATION_OFFSETS = 8;
-const MAX_NOTIFICATION_OFFSET_MINUTES = 24 * 60;
-
-function createEmptyTaskForm(date = getLocalDateKey()) {
-  return {
-    title: '',
-    description: '',
-    date,
-    time: '',
-    genre: '',
-    priority: 'normal'
-  };
-}
-
-const EMPTY_TASK_FORM = createEmptyTaskForm();
-
-const PRIORITY_LABELS = {
-  high: '高',
-  normal: '通常',
-  low: '低'
-};
-
-const NO_GENRE_LABEL = '未設定';
-
-function sortTasksForSettings(tasks) {
-  return [...tasks].sort((a, b) => {
-    if (a.completed !== b.completed) {
-      return a.completed ? 1 : -1;
-    }
-    if (a.date !== b.date) {
-      return a.date.localeCompare(b.date);
-    }
-    if (a.time && b.time) {
-      return a.time.localeCompare(b.time);
-    }
-    if (a.time !== b.time) {
-      return a.time ? -1 : 1;
-    }
-    return a.title.localeCompare(b.title, 'ja');
-  });
-}
-
-function getGenreCandidates(tasks, genreHistory = []) {
-  const genres = new Set();
-  for (const genre of genreHistory) {
-    if (typeof genre === 'string' && genre.trim()) {
-      genres.add(genre.trim());
-    }
-  }
-  for (const task of tasks) {
-    const genre = task.genre?.trim();
-    if (genre) {
-      genres.add(genre);
-    }
-  }
-  return [...genres].sort((a, b) => a.localeCompare(b, 'ja'));
-}
-
-function groupTasksByGenre(tasks) {
-  const groups = new Map();
-  for (const task of tasks) {
-    const genre = task.genre?.trim() || NO_GENRE_LABEL;
-    if (!groups.has(genre)) {
-      groups.set(genre, []);
-    }
-    groups.get(genre).push(task);
-  }
-
-  return [...groups.entries()]
-    .map(([genre, groupedTasks]) => ({
-      genre,
-      tasks: sortTasksForSettings(groupedTasks),
-      incompleteCount: groupedTasks.filter((task) => !task.completed).length
-    }))
-    .sort((a, b) => {
-      if (a.genre === NO_GENRE_LABEL) {
-        return 1;
-      }
-      if (b.genre === NO_GENRE_LABEL) {
-        return -1;
-      }
-      return a.genre.localeCompare(b.genre, 'ja');
-    });
-}
-
-function formatTaskDate(task) {
-  return `${task.date} ${task.time || '今日中'}`;
-}
-
-function taskToForm(task) {
-  return {
-    title: task.title,
-    description: task.description || '',
-    date: task.date,
-    time: task.time || '',
-    genre: task.genre || '',
-    priority: task.priority || 'normal'
-  };
-}
-
-function sanitizeNotificationOffsets(offsets) {
-  const normalized = [];
-  for (const offset of offsets) {
-    if (!Number.isFinite(offset)) {
-      continue;
-    }
-    const minutes = Math.min(
-      MAX_NOTIFICATION_OFFSET_MINUTES,
-      Math.max(0, Math.round(offset))
-    );
-    if (!normalized.includes(minutes)) {
-      normalized.push(minutes);
-    }
-    if (normalized.length >= MAX_NOTIFICATION_OFFSETS) {
-      break;
-    }
-  }
-  return (normalized.length > 0 ? normalized : DEFAULT_NOTIFICATION_OFFSETS).sort(
-    (a, b) => b - a
-  );
-}
-
-function formatNotificationOffset(minutes) {
-  return minutes === 0 ? '締切時刻ちょうど' : `${minutes}分前`;
-}
-
-function nextDefaultNotificationOffset(offsets) {
-  const candidates = [10, 15, 30, 60, 120, 0, 5, 1];
-  return candidates.find((minutes) => !offsets.includes(minutes)) ?? 1;
-}
-
 export default function SettingsPanel() {
-  const [activeTab, setActiveTab] = useState('appearance');
+  const [activeTab, setActiveTab] = useState('projectReview');
   const [settings, setSettings] = useState(null);
   const [characters, setCharacters] = useState([]);
-  const [tasks, setTasks] = useState([]);
-  const [taskLoadError, setTaskLoadError] = useState('');
   const [preview, setPreview] = useState(null);
-  const [taskForm, setTaskForm] = useState(EMPTY_TASK_FORM);
-  const [editingTaskId, setEditingTaskId] = useState(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-
-  const sortedTasks = useMemo(() => sortTasksForSettings(tasks), [tasks]);
-  const genreCandidates = useMemo(
-    () => getGenreCandidates(tasks, settings?.genreHistory),
-    [settings?.genreHistory, tasks]
-  );
-  const groupedTasks = useMemo(() => groupTasksByGenre(sortedTasks), [sortedTasks]);
-  const incompleteCount = useMemo(
-    () => tasks.filter((task) => !task.completed).length,
-    [tasks]
-  );
-  const notificationOffsets = useMemo(
-    () => sanitizeNotificationOffsets(settings?.notificationOffsets || DEFAULT_NOTIFICATION_OFFSETS),
-    [settings?.notificationOffsets]
-  );
-  const isEditingTask = Boolean(editingTaskId);
 
   useEffect(() => {
     let mounted = true;
     Promise.all([
       window.taskMate.getSettings(),
-      window.taskMate.getCharacters(),
-      window.taskMate.getTasks()
+      window.taskMate.getCharacters()
     ])
-      .then(([loadedSettings, loadedCharacters, taskResult]) => {
+      .then(([loadedSettings, loadedCharacters]) => {
         if (mounted) {
           setSettings(loadedSettings);
           setCharacters(loadedCharacters);
-          setTasks(taskResult.tasks || []);
-          setTaskLoadError(taskResult.error || '');
         }
       })
       .catch((loadError) => setError(loadError.message));
@@ -184,17 +29,9 @@ export default function SettingsPanel() {
         setSettings(next);
       }
     });
-    const unsubscribeTasks = window.taskMate.onTasksUpdated((result) => {
-      if (mounted) {
-        setTasks(result.tasks || []);
-        setTaskLoadError(result.error || '');
-      }
-    });
-
     return () => {
       mounted = false;
       unsubscribeSettings();
-      unsubscribeTasks();
     };
   }, []);
 
@@ -244,128 +81,36 @@ export default function SettingsPanel() {
     }
   }
 
-  async function reloadTasks() {
-    setError('');
-    setMessage('');
-    const result = await window.taskMate.reloadTasks();
-    setTasks(result.tasks || []);
-    setTaskLoadError(result.error || '');
-    setMessage(result.error ? '' : 'tasks.jsonを再読み込みしました。');
-  }
-
-  function updateTaskForm(field, value) {
-    setTaskForm((current) => ({ ...current, [field]: value }));
-  }
-
-  async function rememberGenre(genre) {
-    const nextGenre = genre?.trim();
-    if (nextGenre && !genreCandidates.includes(nextGenre)) {
-      const nextSettings = await window.taskMate.updateSettings({
-        genreHistory: [...genreCandidates, nextGenre]
-      });
-      setSettings(nextSettings);
-    }
-  }
-
-  function resetTaskForm(date = getLocalDateKey()) {
-    setTaskForm(createEmptyTaskForm(date));
-    setEditingTaskId(null);
-  }
-
-  function startEditTask(task) {
-    setError('');
-    setMessage(`「${task.title}」を編集中です。`);
-    setEditingTaskId(task.id);
-    setTaskForm(taskToForm(task));
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  async function submitTask(event) {
-    event.preventDefault();
-    setError('');
-    setMessage('');
-    try {
-      const taskInput = {
-        ...taskForm,
-        time: taskForm.time || null
-      };
-
-      if (editingTaskId) {
-        const updatedTask = await window.taskMate.updateTask(editingTaskId, taskInput);
-        setTasks((current) =>
-          current.map((task) => (task.id === updatedTask.id ? updatedTask : task))
-        );
-        await rememberGenre(updatedTask.genre);
-        resetTaskForm(taskForm.date || getLocalDateKey());
-        setMessage(`「${updatedTask.title}」を更新しました。`);
-      } else {
-        const addedTask = await window.taskMate.addTask(taskInput);
-        setTasks((current) =>
-          current.some((task) => task.id === addedTask.id)
-            ? current
-            : [...current, addedTask]
-        );
-        await rememberGenre(addedTask.genre);
-        resetTaskForm(taskForm.date || getLocalDateKey());
-        setMessage(`「${addedTask.title}」を追加しました。`);
-      }
-    } catch (saveError) {
-      setError(saveError.message);
-    }
-  }
-
-  function changeNotificationOffset(index, value) {
-    const minutes = Number(value);
-    if (!Number.isFinite(minutes)) {
-      return;
-    }
-    setSettings((current) => ({
-      ...current,
-      notificationOffsets: notificationOffsets.map((offset, offsetIndex) =>
-        offsetIndex === index ? minutes : offset
-      )
-    }));
-  }
-
-  async function saveNotificationOffsets(offsets) {
-    await update({ notificationOffsets: sanitizeNotificationOffsets(offsets) });
-  }
-
-  async function addNotificationOffset() {
-    if (notificationOffsets.length >= MAX_NOTIFICATION_OFFSETS) {
-      return;
-    }
-    await saveNotificationOffsets([
-      ...notificationOffsets,
-      nextDefaultNotificationOffset(notificationOffsets)
-    ]);
-  }
-
-  async function removeNotificationOffset(index) {
-    if (notificationOffsets.length <= 1) {
-      return;
-    }
-    await saveNotificationOffsets(
-      notificationOffsets.filter((_, offsetIndex) => offsetIndex !== index)
-    );
-  }
-
-  async function deleteTask(task) {
-    if (!window.confirm(`「${task.title}」を削除しますか？`)) {
+  async function resetLifeState() {
+    if (!window.confirm('関係記憶だけをリセットします。タスクと設定は残ります。よろしいですか？')) {
       return;
     }
     setError('');
     setMessage('');
     try {
-      await window.taskMate.deleteTask(task.id);
-      setTasks((current) => current.filter((candidate) => candidate.id !== task.id));
-      if (editingTaskId === task.id) {
-        resetTaskForm();
-      }
-      setMessage(`「${task.title}」を削除しました。`);
-    } catch (deleteError) {
-      setError(deleteError.message);
+      await window.taskMate.resetLifeState();
+      setMessage('関係記憶をリセットしました。');
+    } catch (resetError) {
+      setError(resetError.message);
     }
+  }
+
+  async function updateQuietHours(partial) {
+    await update({
+      quietHours: {
+        ...(settings.quietHours || {}),
+        ...partial
+      }
+    });
+  }
+
+  async function updateProjectSettings(partial) {
+    await update({
+      projectSettings: {
+        ...(settings.projectSettings || {}),
+        ...partial
+      }
+    });
   }
 
   if (!settings) {
@@ -379,7 +124,7 @@ export default function SettingsPanel() {
           <span>TASKMATE PREFERENCES</span>
           <h1>設定</h1>
           <p>
-            表示の調整と、TaskMateが使うタスクデータをここから管理できます。
+            表示の調整と、長期タスク管理の計算・通知設定をここから管理できます。
           </p>
         </div>
         <div className="settings-preview">
@@ -401,21 +146,32 @@ export default function SettingsPanel() {
         </button>
         <button
           type="button"
-          className={activeTab === 'tasks' ? 'is-active' : ''}
-          onClick={() => setActiveTab('tasks')}
+          className={activeTab === 'behavior' ? 'is-active' : ''}
+          onClick={() => setActiveTab('behavior')}
         >
-          タスク設定
-          <span>{incompleteCount}</span>
+          ふるまい
+        </button>
+        <button
+          type="button"
+          className={activeTab === 'projectReview' ? 'is-active' : ''}
+          onClick={() => setActiveTab('projectReview')}
+        >
+          長期プロジェクトレビュー
+        </button>
+        <button
+          type="button"
+          className={activeTab === 'projects' ? 'is-active' : ''}
+          onClick={() => setActiveTab('projects')}
+        >
+          長期設定
         </button>
       </nav>
 
-      {(message || error || taskLoadError) && (
+      {(message || error) && (
         <div
-          className={`settings-message${
-            error || taskLoadError ? ' settings-message--error' : ''
-          }`}
+          className={`settings-message${error ? ' settings-message--error' : ''}`}
         >
-          {error || taskLoadError || message}
+          {error || message}
         </div>
       )}
 
@@ -456,7 +212,7 @@ export default function SettingsPanel() {
               <span className="settings-card__label">CHARACTER DISPLAY</span>
               <h2>キャラクター表示</h2>
               <p>
-                オフにするとキャラクターを隠し、タスク一覧をアプリ画面として使います。
+                オフにするとキャラクターを隠し、長期タスク管理をアプリ画面として使います。
               </p>
             </div>
             <label className="toggle">
@@ -526,79 +282,22 @@ export default function SettingsPanel() {
             </label>
           </section>
 
-          <section className="settings-card">
-            <div className="settings-card__heading">
-              <div>
-                <span>NOTIFICATIONS</span>
-                <h2>通知タイミング</h2>
-              </div>
-              <strong>{notificationOffsets.length}回</strong>
+          <section className="settings-card settings-card--compact">
+            <div>
+              <span className="settings-card__label">WINDOWS TOAST</span>
+              <h2>Windows標準通知も表示</h2>
+              <p>オンにすると、長期Todoの吹き出し通知に加えてWindowsの通知も表示します。</p>
             </div>
-            <p>
-              時刻が設定された未完了タスクに対して、締切の何分前に通知するかを指定できます。
-              0分前は締切時刻ちょうどです。
-            </p>
-
-            <div className="notification-channel">
-              <div>
-                <span className="settings-card__label">WINDOWS TOAST</span>
-                <strong>Windows標準通知も表示</strong>
-                <p>オンにすると、TaskMateの吹き出し通知に加えてWindowsの通知も表示します。</p>
-              </div>
-              <label className="toggle">
-                <input
-                  type="checkbox"
-                  checked={settings.useNativeNotifications !== false}
-                  onChange={(event) =>
-                    update({ useNativeNotifications: event.target.checked })
-                  }
-                />
-                <span />
-              </label>
-            </div>
-
-            <div className="notification-rules">
-              {notificationOffsets.map((minutes, index) => (
-                <div key={`${minutes}-${index}`} className="notification-rule">
-                  <label className="field">
-                    <span>{index + 1}回目の通知</span>
-                    <input
-                      type="number"
-                      min="0"
-                      max={MAX_NOTIFICATION_OFFSET_MINUTES}
-                      step="1"
-                      value={minutes}
-                      onChange={(event) =>
-                        changeNotificationOffset(index, event.target.value)
-                      }
-                      onBlur={() => saveNotificationOffsets(notificationOffsets)}
-                    />
-                  </label>
-                  <span className="notification-rule__label">
-                    {formatNotificationOffset(minutes)}
-                  </span>
-                  <button
-                    type="button"
-                    className="danger-button"
-                    onClick={() => removeNotificationOffset(index)}
-                    disabled={notificationOffsets.length <= 1}
-                  >
-                    削除
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            <div className="task-form__actions">
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={addNotificationOffset}
-                disabled={notificationOffsets.length >= MAX_NOTIFICATION_OFFSETS}
-              >
-                通知を追加
-              </button>
-            </div>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={settings.useNativeNotifications !== false}
+                onChange={(event) =>
+                  update({ useNativeNotifications: event.target.checked })
+                }
+              />
+              <span />
+            </label>
           </section>
 
           <section className="settings-card settings-card--compact">
@@ -628,189 +327,307 @@ export default function SettingsPanel() {
             </button>
           </section>
         </>
-      ) : (
+      ) : activeTab === 'behavior' ? (
+        <>
+          <section className="settings-card settings-card--compact">
+            <div>
+              <span className="settings-card__label">BEHAVIOR</span>
+              <h2>ふるまい全体</h2>
+              <p>オフにすると、自発的なセリフや周辺表現を抑えます。</p>
+            </div>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={settings.behaviorEnabled !== false}
+                onChange={(event) => update({ behaviorEnabled: event.target.checked })}
+              />
+              <span />
+            </label>
+          </section>
+
+          <section className="settings-card">
+            <div className="settings-card__heading">
+              <div>
+                <span>DESKTOP ATMOSPHERE</span>
+                <h2>生活圧の表現</h2>
+              </div>
+            </div>
+
+            <div className="behavior-options">
+              <section className="behavior-option">
+                <div>
+                  <strong>周辺表現</strong>
+                  <p>タスク状態をキャラクター周りの控えめな空気感として表示します。</p>
+                </div>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={settings.ambientEffects !== false}
+                    onChange={(event) => update({ ambientEffects: event.target.checked })}
+                  />
+                  <span />
+                </label>
+              </section>
+
+              <section className="behavior-option">
+                <div>
+                  <strong>自律移動</strong>
+                  <p>キャラクターが現在位置の近くで小さく動きます。</p>
+                </div>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={settings.autonomousMovement !== false}
+                    onChange={(event) =>
+                      update({ autonomousMovement: event.target.checked })
+                    }
+                  />
+                  <span />
+                </label>
+              </section>
+
+              <section className="behavior-option">
+                <div>
+                  <strong>完了リアクション</strong>
+                  <p>タスク完了時に短いrelieved/celebrating反応を表示します。</p>
+                </div>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={settings.completionReactions !== false}
+                    onChange={(event) =>
+                      update({ completionReactions: event.target.checked })
+                    }
+                  />
+                  <span />
+                </label>
+              </section>
+
+              <section className="behavior-option">
+                <div>
+                  <strong>継続関係の記憶</strong>
+                  <p>起動日数や完了数をlife-state.jsonへ保存します。</p>
+                </div>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={settings.relationshipMemoryEnabled !== false}
+                    onChange={(event) =>
+                      update({ relationshipMemoryEnabled: event.target.checked })
+                    }
+                  />
+                  <span />
+                </label>
+              </section>
+            </div>
+          </section>
+
+          <section className="settings-card">
+            <div className="settings-card__heading">
+              <div>
+                <span>INTENSITY</span>
+                <h2>強さと静かな時間帯</h2>
+              </div>
+            </div>
+
+            <label className="field">
+              <span>ふるまいの強さ</span>
+              <select
+                value={settings.behaviorIntensity || 'normal'}
+                onChange={(event) => update({ behaviorIntensity: event.target.value })}
+              >
+                <option value="low">低</option>
+                <option value="normal">通常</option>
+                <option value="high">高</option>
+              </select>
+            </label>
+
+            <div className="quiet-hours">
+              <div className="notification-channel">
+                <div>
+                  <span className="settings-card__label">QUIET HOURS</span>
+                  <strong>静かな時間帯</strong>
+                  <p>この時間帯は自律移動と自発セリフを抑制します。</p>
+                </div>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={settings.quietHours?.enabled !== false}
+                    onChange={(event) =>
+                      updateQuietHours({ enabled: event.target.checked })
+                    }
+                  />
+                  <span />
+                </label>
+              </div>
+              <div className="quiet-hours__times">
+                <label className="field">
+                  <span>開始</span>
+                  <input
+                    type="time"
+                    value={settings.quietHours?.start || '22:00'}
+                    onChange={(event) => updateQuietHours({ start: event.target.value })}
+                  />
+                </label>
+                <label className="field">
+                  <span>終了</span>
+                  <input
+                    type="time"
+                    value={settings.quietHours?.end || '07:00'}
+                    onChange={(event) => updateQuietHours({ end: event.target.value })}
+                  />
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <section className="settings-card settings-card--compact">
+            <div>
+              <span className="settings-card__label">LIFE STATE</span>
+              <h2>関係記憶をリセット</h2>
+              <p>タスク、通知状態、表示設定はそのまま残します。</p>
+            </div>
+            <button type="button" className="danger-button" onClick={resetLifeState}>
+              リセット
+            </button>
+          </section>
+        </>
+      ) : activeTab === 'projectReview' ? (
+        <ProjectManagementMode
+          settings={settings}
+          title="長期プロジェクトレビュー"
+          eyebrow="PROJECT REVIEW"
+        />
+      ) : activeTab === 'projects' ? (
         <>
           <section className="settings-card">
             <div className="settings-card__heading">
               <div>
-                <span>TASKS</span>
-                <h2>{isEditingTask ? 'タスクを編集' : 'タスクを追加'}</h2>
+                <span>LONG TERM TASKS</span>
+                <h2>長期タスク管理</h2>
               </div>
-              <button type="button" className="secondary-button" onClick={reloadTasks}>
-                再読み込み
-              </button>
             </div>
+            <p>
+              今日のおすすめTodo、遅延リスク、期限警告の計算に使う作業可能時間です。
+            </p>
 
-            <form className="task-form" onSubmit={submitTask}>
-              <label className="field field--wide">
-                <span>タスク名</span>
-                <input
-                  type="text"
-                  value={taskForm.title}
-                  onChange={(event) => updateTaskForm('title', event.target.value)}
-                  placeholder="例: レポートを提出する"
-                  required
-                />
-              </label>
-
+            <div className="project-settings-grid">
               <label className="field">
-                <span>日付</span>
+                <span>1日に作業可能な時間</span>
                 <input
-                  type="date"
-                  value={taskForm.date}
-                  onChange={(event) => updateTaskForm('date', event.target.value)}
-                  required
+                  type="number"
+                  min="15"
+                  max="1440"
+                  value={settings.projectSettings?.dailyAvailableMinutes || 120}
+                  onChange={(event) =>
+                    updateProjectSettings({ dailyAvailableMinutes: Number(event.target.value) })
+                  }
                 />
               </label>
-
               <label className="field">
-                <span>時刻</span>
+                <span>平日の作業可能時間</span>
                 <input
-                  type="time"
-                  value={taskForm.time}
-                  onChange={(event) => updateTaskForm('time', event.target.value)}
+                  type="number"
+                  min="15"
+                  max="1440"
+                  value={settings.projectSettings?.weekdayAvailableMinutes || 120}
+                  onChange={(event) =>
+                    updateProjectSettings({ weekdayAvailableMinutes: Number(event.target.value) })
+                  }
                 />
-                <small>空欄なら「今日中」として扱います。</small>
               </label>
-
               <label className="field">
-                <span>ジャンル</span>
+                <span>休日の作業可能時間</span>
                 <input
-                  list="task-genre-options"
-                  type="text"
-                  value={taskForm.genre}
-                  onChange={(event) => updateTaskForm('genre', event.target.value)}
-                  placeholder="学校、私用など"
+                  type="number"
+                  min="15"
+                  max="1440"
+                  value={settings.projectSettings?.weekendAvailableMinutes || 240}
+                  onChange={(event) =>
+                    updateProjectSettings({ weekendAvailableMinutes: Number(event.target.value) })
+                  }
                 />
-                <datalist id="task-genre-options">
-                  {genreCandidates.map((genre) => (
-                    <option key={genre} value={genre} />
-                  ))}
-                </datalist>
               </label>
-
               <label className="field">
-                <span>優先度</span>
-                <select
-                  value={taskForm.priority}
-                  onChange={(event) => updateTaskForm('priority', event.target.value)}
-                >
-                  <option value="high">高</option>
-                  <option value="normal">通常</option>
-                  <option value="low">低</option>
-                </select>
-              </label>
-
-              <label className="field field--wide">
-                <span>説明</span>
-                <textarea
-                  rows="3"
-                  value={taskForm.description}
-                  onChange={(event) => updateTaskForm('description', event.target.value)}
-                  placeholder="必要ならメモを入力"
+                <span>1回のおすすめ作業時間</span>
+                <input
+                  type="number"
+                  min="5"
+                  max="240"
+                  value={settings.projectSettings?.defaultSessionMinutes || 45}
+                  onChange={(event) =>
+                    updateProjectSettings({ defaultSessionMinutes: Number(event.target.value) })
+                  }
                 />
               </label>
-
-              <div className="task-form__actions">
-                <button type="submit" className="primary-button">
-                  {isEditingTask ? '保存する' : '追加する'}
-                </button>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => resetTaskForm()}
-                >
-                  {isEditingTask ? '編集をキャンセル' : '入力をクリア'}
-                </button>
-              </div>
-            </form>
-
-            {genreCandidates.length > 0 && (
-              <div className="genre-palette" aria-label="登録済みジャンル">
-                <span>登録済みジャンル</span>
-                <div>
-                  {genreCandidates.map((genre) => (
-                    <button
-                      key={genre}
-                      type="button"
-                      onClick={() => updateTaskForm('genre', genre)}
-                    >
-                      {genre}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+              <label className="field">
+                <span>おすすめTodo数</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={settings.projectSettings?.dailyRecommendationLimit || 5}
+                  onChange={(event) =>
+                    updateProjectSettings({ dailyRecommendationLimit: Number(event.target.value) })
+                  }
+                />
+              </label>
+              <label className="field">
+                <span>期限警告を出す日数</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="60"
+                  value={settings.projectSettings?.deadlineWarningDays || 7}
+                  onChange={(event) =>
+                    updateProjectSettings({ deadlineWarningDays: Number(event.target.value) })
+                  }
+                />
+              </label>
+            </div>
           </section>
 
-          <section className="settings-card">
-            <div className="settings-card__heading">
-              <div>
-                <span>TASK LIST</span>
-                <h2>登録済みタスク</h2>
-              </div>
-              <strong>{tasks.length}件</strong>
+          <section className="settings-card settings-card--compact">
+            <div>
+              <span className="settings-card__label">LONG TERM NOTIFICATIONS</span>
+              <h2>期限超過通知</h2>
+              <p>長期タスク内のTodoの期限超過を通知対象にします。</p>
             </div>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={settings.projectSettings?.overdueNotificationsEnabled !== false}
+                onChange={(event) =>
+                  updateProjectSettings({
+                    overdueNotificationsEnabled: event.target.checked
+                  })
+                }
+              />
+              <span />
+            </label>
+          </section>
 
-            {groupedTasks.length > 0 ? (
-              <div className="task-settings-list">
-                {groupedTasks.map((group) => (
-                  <section key={group.genre} className="task-genre-group">
-                    <header>
-                      <div>
-                        <span>GENRE</span>
-                        <h3>{group.genre}</h3>
-                      </div>
-                      <strong>
-                        {group.tasks.length}件
-                        {group.incompleteCount > 0 && ` / 未完了${group.incompleteCount}件`}
-                      </strong>
-                    </header>
-                    <div className="task-genre-group__items">
-                      {group.tasks.map((task) => (
-                        <article
-                          key={task.id}
-                          className={`task-settings-item${
-                            task.completed ? ' task-settings-item--completed' : ''
-                          }`}
-                        >
-                          <div>
-                            <time>{formatTaskDate(task)}</time>
-                            <h4>{task.title}</h4>
-                            {task.description && <p>{task.description}</p>}
-                            <div className="task-settings-item__meta">
-                              <span>優先度 {PRIORITY_LABELS[task.priority]}</span>
-                              {task.completed && <span>完了済み</span>}
-                            </div>
-                          </div>
-                          <div className="task-settings-item__actions">
-                            <button
-                              type="button"
-                              className="secondary-button"
-                              onClick={() => startEditTask(task)}
-                            >
-                              編集
-                            </button>
-                            <button
-                              type="button"
-                              className="danger-button"
-                              onClick={() => deleteTask(task)}
-                            >
-                              削除
-                            </button>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  </section>
-                ))}
-              </div>
-            ) : (
-              <p className="task-settings-empty">登録済みタスクはありません。</p>
-            )}
+          <section className="settings-card settings-card--compact">
+            <div>
+              <span className="settings-card__label">PROGRESS WATCH</span>
+              <h2>進捗通知</h2>
+              <p>遅延リスクが高い長期タスクの通知を有効にします。</p>
+            </div>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={settings.projectSettings?.progressNotificationsEnabled !== false}
+                onChange={(event) =>
+                  updateProjectSettings({
+                    progressNotificationsEnabled: event.target.checked
+                  })
+                }
+              />
+              <span />
+            </label>
           </section>
         </>
-      )}
+      ) : null}
     </main>
   );
 }

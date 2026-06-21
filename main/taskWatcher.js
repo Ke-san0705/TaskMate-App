@@ -1,4 +1,4 @@
-function createTaskWatcher({ fileManager, onTasksChanged, onSettingsChanged }) {
+function createTaskWatcher({ fileManager, onTasksChanged, onSettingsChanged, onProjectsChanged }) {
   let watcher = null;
   const debounceTimers = new Map();
 
@@ -32,11 +32,25 @@ function createTaskWatcher({ fileManager, onTasksChanged, onSettingsChanged }) {
     return settings;
   }
 
+  async function reloadProjects() {
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    const result = await fileManager.getProjectStateResult();
+    onProjectsChanged?.(result);
+    return result;
+  }
+
   async function start() {
     // chokidar 5はES Moduleのため、CommonJSのmain processから動的に読み込みます。
     const { default: chokidar } = await import('chokidar');
     watcher = chokidar.watch(
-      [fileManager.paths.tasksFile, fileManager.paths.settingsFile],
+      [
+        fileManager.paths.tasksFile,
+        fileManager.paths.settingsFile,
+        fileManager.paths.projectCategoriesFile,
+        fileManager.paths.projectsFile,
+        fileManager.paths.milestonesFile,
+        fileManager.paths.projectTasksFile
+      ],
       {
         ignoreInitial: true,
         awaitWriteFinish: {
@@ -50,6 +64,15 @@ function createTaskWatcher({ fileManager, onTasksChanged, onSettingsChanged }) {
         debounce('tasks.json', reloadTasks);
       } else if (changedPath === fileManager.paths.settingsFile) {
         debounce('settings.json', reloadSettings);
+      } else if (
+        [
+          fileManager.paths.projectCategoriesFile,
+          fileManager.paths.projectsFile,
+          fileManager.paths.milestonesFile,
+          fileManager.paths.projectTasksFile
+        ].includes(changedPath)
+      ) {
+        debounce('project-json', reloadProjects);
       }
     });
     watcher.on('error', (error) => {
@@ -73,7 +96,8 @@ function createTaskWatcher({ fileManager, onTasksChanged, onSettingsChanged }) {
   return {
     start,
     stop,
-    reloadTasks
+    reloadTasks,
+    reloadProjects
   };
 }
 

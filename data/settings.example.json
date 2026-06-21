@@ -17,5 +17,26 @@
   ],
   "useNativeNotifications": true,
   "isMainWindowVisible": true,
-  "genreHistory": []
+  "genreHistory": [],
+  "behaviorEnabled": true,
+  "ambientEffects": true,
+  "autonomousMovement": true,
+  "completionReactions": true,
+  "relationshipMemoryEnabled": true,
+  "behaviorIntensity": "normal",
+  "quietHours": {
+    "enabled": true,
+    "start": "22:00",
+    "end": "07:00"
+  },
+  "projectSettings": {
+    "dailyAvailableMinutes": 120,
+    "weekdayAvailableMinutes": 120,
+    "weekendAvailableMinutes": 240,
+    "defaultSessionMinutes": 45,
+    "dailyRecommendationLimit": 5,
+    "deadlineWarningDays": 7,
+    "overdueNotificationsEnabled": true,
+    "progressNotificationsEnabled": true
+  }
 }

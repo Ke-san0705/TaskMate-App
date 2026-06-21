@@ -22,14 +22,14 @@ function createTrayManager({ Tray, Menu, nativeImage, fileManager, actions }) {
       { type: 'separator' },
       { label: '表示する', click: actions.show },
       { label: '非表示にする', click: actions.hide },
-      { label: '今日のタスクを表示', click: actions.showTasks },
+      { label: '長期タスク管理を表示', click: actions.showTasks },
       {
         label: 'キャラクターを表示',
         type: 'checkbox',
         checked: settings.showCharacter !== false,
         click: actions.toggleCharacter
       },
-      { label: 'タスクを再読み込み', click: actions.reloadTasks },
+      { label: '長期タスクを再読み込み', click: actions.reloadTasks },
       { label: '設定', click: actions.openSettings },
       {
         label: 'Windows標準通知',

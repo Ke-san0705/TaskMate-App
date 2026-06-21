@@ -5,6 +5,10 @@ const MAIN_MIN_WIDTH = 300;
 const MAIN_MIN_HEIGHT = 180;
 const MAIN_MAX_WIDTH = 1400;
 const MAIN_MAX_HEIGHT = 1000;
+const MAIN_RESIZE_EPSILON = 2;
+const AUTONOMOUS_STEP_MS = 80;
+const AUTONOMOUS_HOLD_MS = 2400;
+const DEFAULT_VISIBLE_MARGIN = 20;
 
 function createWindowManager({
   BrowserWindow,
@@ -19,6 +23,10 @@ function createWindowManager({
   let isQuitting = false;
   let dragState = null;
   let notificationOnly = false;
+  let autonomousTimers = [];
+  let autonomousGeneration = 0;
+  let mainDragBounds = null;
+  let clickThroughIgnored = false;
 
   function rendererLocation(view) {
     const devServer = process.env.VITE_DEV_SERVER_URL;
@@ -49,19 +57,176 @@ function createWindowManager({
     return screen.getPrimaryDisplay().workArea;
   }
 
-  function clampPosition(x, y, width, height) {
-    const area = primaryWorkArea();
+  function cursorPoint(fallback) {
+    if (typeof screen.getCursorScreenPoint === 'function') {
+      const point = screen.getCursorScreenPoint();
+      if (Number.isFinite(point?.x) && Number.isFinite(point?.y)) {
+        return point;
+      }
+    }
+    return fallback;
+  }
+
+  function clampNumber(value, min, max) {
+    const rounded = Math.round(value);
+    if (max < min) {
+      return Math.round(min);
+    }
+    return Math.min(Math.max(rounded, min), max);
+  }
+
+  function sameBounds(left, right) {
+    if (!left && !right) {
+      return true;
+    }
+    if (!left || !right) {
+      return false;
+    }
+    return ['x', 'y', 'width', 'height'].every(
+      (key) => Math.abs(left[key] - right[key]) <= MAIN_RESIZE_EPSILON
+    );
+  }
+
+  function normalizeDragBounds(value, width, height) {
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
+    const x = Math.round(value.x);
+    const y = Math.round(value.y);
+    const boundsWidth = Math.round(value.width);
+    const boundsHeight = Math.round(value.height);
+    if (
+      !Number.isFinite(x) ||
+      !Number.isFinite(y) ||
+      !Number.isFinite(boundsWidth) ||
+      !Number.isFinite(boundsHeight) ||
+      boundsWidth <= 0 ||
+      boundsHeight <= 0
+    ) {
+      return null;
+    }
+
+    const left = Math.min(Math.max(0, x), Math.max(0, width - 1));
+    const top = Math.min(Math.max(0, y), Math.max(0, height - 1));
+    const right = Math.min(width, Math.max(left + 1, x + boundsWidth));
+    const bottom = Math.min(height, Math.max(top + 1, y + boundsHeight));
     return {
-      x: Math.min(Math.max(Math.round(x), area.x), area.x + area.width - width),
-      y: Math.min(Math.max(Math.round(y), area.y), area.y + area.height - height)
+      x: left,
+      y: top,
+      width: right - left,
+      height: bottom - top
     };
+  }
+
+  function clampPosition(x, y, width, height, dragBounds = mainDragBounds) {
+    const area = primaryWorkArea();
+    if (dragBounds) {
+      return {
+        x: clampNumber(
+          x,
+          area.x - dragBounds.x,
+          area.x + area.width - dragBounds.x - dragBounds.width
+        ),
+        y: clampNumber(
+          y,
+          area.y - dragBounds.y,
+          area.y + area.height - dragBounds.y - dragBounds.height
+        )
+      };
+    }
+    const maxX = Math.max(area.x, area.x + area.width - width);
+    const maxY = Math.max(area.y, area.y + area.height - height);
+    return {
+      x: clampNumber(x, area.x, maxX),
+      y: clampNumber(y, area.y, maxY)
+    };
+  }
+
+  function dragAnchor(bounds, dragBounds) {
+    return {
+      x: bounds.x + dragBounds.x,
+      y: bounds.y + dragBounds.y + dragBounds.height
+    };
+  }
+
+  function positionFromDragAnchor(anchor, dragBounds) {
+    return {
+      x: anchor.x - dragBounds.x,
+      y: anchor.y - dragBounds.y - dragBounds.height
+    };
+  }
+
+  function clearAutonomousTimers() {
+    for (const timer of autonomousTimers) {
+      clearTimeout(timer);
+    }
+    autonomousTimers = [];
+    autonomousGeneration += 1;
+  }
+
+  function cancelAutonomousMovement(reason = 'cancelled') {
+    if (autonomousTimers.length > 0) {
+      console.info('[TaskMate:Window] autonomous movement cancelled', reason);
+    }
+    clearAutonomousTimers();
+  }
+
+  function scheduleAutonomousStep(callback, delay) {
+    const timer = setTimeout(() => {
+      autonomousTimers = autonomousTimers.filter((candidate) => candidate !== timer);
+      callback();
+    }, delay);
+    autonomousTimers.push(timer);
+  }
+
+  function animatePosition(from, to, generation, onDone) {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return;
+    }
+    const steps = 4;
+    for (let step = 1; step <= steps; step += 1) {
+      scheduleAutonomousStep(() => {
+        if (
+          generation !== autonomousGeneration ||
+          dragState ||
+          !mainWindow ||
+          mainWindow.isDestroyed()
+        ) {
+          return;
+        }
+        const progress = step / steps;
+        const eased = 1 - Math.pow(1 - progress, 2);
+        const nextX = Math.round(from.x + (to.x - from.x) * eased);
+        const nextY = Math.round(from.y + (to.y - from.y) * eased);
+        mainWindow.setPosition(nextX, nextY, false);
+        if (step === steps) {
+          onDone?.();
+        }
+      }, AUTONOMOUS_STEP_MS * step);
+    }
   }
 
   function defaultPosition(width, height) {
     const area = primaryWorkArea();
     return {
-      x: area.x + 20,
-      y: area.y + area.height - height - 20
+      x: area.x + DEFAULT_VISIBLE_MARGIN,
+      y: area.y + area.height - height - DEFAULT_VISIBLE_MARGIN
+    };
+  }
+
+  function defaultVisiblePosition(width, height, dragBounds = mainDragBounds) {
+    if (!dragBounds) {
+      return defaultPosition(width, height);
+    }
+    const area = primaryWorkArea();
+    return {
+      x: area.x + DEFAULT_VISIBLE_MARGIN - dragBounds.x,
+      y:
+        area.y +
+        area.height -
+        DEFAULT_VISIBLE_MARGIN -
+        dragBounds.y -
+        dragBounds.height
     };
   }
 
@@ -124,9 +289,9 @@ function createWindowManager({
       return;
     }
     settingsWindow = new BrowserWindow({
-      width: 540,
-      height: 720,
-      minWidth: 460,
+      width: 1180,
+      height: 820,
+      minWidth: 760,
       minHeight: 600,
       title: 'TaskMate 設定',
       backgroundColor: '#f7f3ea',
@@ -164,12 +329,14 @@ function createWindowManager({
       return;
     }
     notificationOnly = false;
+    setClickThrough(false);
     mainWindow.showInactive();
     mainWindow.setAlwaysOnTop(true, 'floating');
   }
 
   function hideMainWindow() {
     if (mainWindow && !mainWindow.isDestroyed()) {
+      setClickThrough(false);
       mainWindow.hide();
     }
   }
@@ -184,6 +351,7 @@ function createWindowManager({
       return;
     }
     notificationOnly = !mainWindow.isVisible();
+    setClickThrough(false);
     mainWindow.showInactive();
     mainWindow.setAlwaysOnTop(true, 'floating');
     sendToMain(IPC.NOTIFICATION, { ...notification, notificationOnly });
@@ -210,9 +378,42 @@ function createWindowManager({
       Math.max(MAIN_MIN_HEIGHT, Math.round(size.height))
     );
     const oldBounds = mainWindow.getBounds();
-    mainWindow.setSize(width, height, false);
-    const anchoredY = oldBounds.y + oldBounds.height - height;
-    const position = clampPosition(oldBounds.x, anchoredY, width, height);
+    const nextDragBounds = normalizeDragBounds(size.dragBounds, width, height);
+    const sameSize =
+      Math.abs(oldBounds.width - width) <= MAIN_RESIZE_EPSILON &&
+      Math.abs(oldBounds.height - height) <= MAIN_RESIZE_EPSILON;
+    const previousDragBounds = mainDragBounds;
+
+    if (sameSize && sameBounds(previousDragBounds, nextDragBounds)) {
+      return;
+    }
+
+    if (autonomousTimers.length > 0) {
+      cancelAutonomousMovement('window-resize');
+    }
+
+    let requestedPosition = {
+      x: oldBounds.x,
+      y: oldBounds.y + oldBounds.height - height
+    };
+    if (previousDragBounds && nextDragBounds) {
+      requestedPosition = positionFromDragAnchor(
+        dragAnchor(oldBounds, previousDragBounds),
+        nextDragBounds
+      );
+    }
+
+    mainDragBounds = nextDragBounds;
+    if (!sameSize) {
+      mainWindow.setSize(width, height, false);
+    }
+    const position = clampPosition(
+      requestedPosition.x,
+      requestedPosition.y,
+      width,
+      height,
+      nextDragBounds
+    );
     mainWindow.setPosition(position.x, position.y, false);
   }
 
@@ -221,13 +422,27 @@ function createWindowManager({
       return null;
     }
     const bounds = mainWindow.getBounds();
-    const position = defaultPosition(bounds.width, bounds.height);
+    const requested = defaultVisiblePosition(bounds.width, bounds.height, mainDragBounds);
+    const position = clampPosition(
+      requested.x,
+      requested.y,
+      bounds.width,
+      bounds.height,
+      mainDragBounds
+    );
     mainWindow.setPosition(position.x, position.y, false);
     return position;
   }
 
   function setClickThrough(enabled) {
     if (mainWindow && !mainWindow.isDestroyed()) {
+      if (dragState && enabled) {
+        return;
+      }
+      if (clickThroughIgnored === enabled) {
+        return;
+      }
+      clickThroughIgnored = enabled;
       mainWindow.setIgnoreMouseEvents(enabled, enabled ? { forward: true } : undefined);
     }
   }
@@ -236,10 +451,12 @@ function createWindowManager({
     if (!mainWindow || mainWindow.isDestroyed()) {
       return;
     }
+    cancelAutonomousMovement('manual-drag');
     const bounds = mainWindow.getBounds();
+    const startPoint = cursorPoint(point);
     dragState = {
-      startX: point.x,
-      startY: point.y,
+      startX: startPoint.x,
+      startY: startPoint.y,
       windowX: bounds.x,
       windowY: bounds.y
     };
@@ -250,10 +467,11 @@ function createWindowManager({
     if (!dragState || !mainWindow || mainWindow.isDestroyed()) {
       return;
     }
+    const cursor = cursorPoint(point);
     const bounds = mainWindow.getBounds();
     const next = clampPosition(
-      dragState.windowX + point.x - dragState.startX,
-      dragState.windowY + point.y - dragState.startY,
+      dragState.windowX + cursor.x - dragState.startX,
+      dragState.windowY + cursor.y - dragState.startY,
       bounds.width,
       bounds.height
     );
@@ -268,6 +486,57 @@ function createWindowManager({
     dragState = null;
     const [x, y] = mainWindow.getPosition();
     return { x, y };
+  }
+
+  function moveAutonomously(movement) {
+    if (
+      !mainWindow ||
+      mainWindow.isDestroyed() ||
+      !mainWindow.isVisible() ||
+      dragState ||
+      notificationOnly ||
+      !movement ||
+      movement.type !== 'nudge'
+    ) {
+      return;
+    }
+    const dx = Number.isFinite(movement.dx)
+      ? Math.min(80, Math.max(-80, Math.round(movement.dx)))
+      : 0;
+    const dy = Number.isFinite(movement.dy)
+      ? Math.min(60, Math.max(-60, Math.round(movement.dy)))
+      : 0;
+    if (dx === 0 && dy === 0) {
+      return;
+    }
+
+    clearAutonomousTimers();
+    const generation = autonomousGeneration;
+    const bounds = mainWindow.getBounds();
+    const from = { x: bounds.x, y: bounds.y };
+    const target = clampPosition(bounds.x + dx, bounds.y + dy, bounds.width, bounds.height);
+
+    // 自律移動は「現在の位置から少しだけ寄る」演出に留めます。
+    // 位置は保存せず、短い保持時間のあと元のユーザー基準位置へ戻すため、
+    // 手動ドラッグで決めた居場所をアプリ側が勝手に奪いません。
+    animatePosition(from, target, generation, () => {
+      scheduleAutonomousStep(() => {
+        if (
+          generation !== autonomousGeneration ||
+          dragState ||
+          !mainWindow ||
+          mainWindow.isDestroyed()
+        ) {
+          return;
+        }
+        const current = mainWindow.getBounds();
+        animatePosition(
+          { x: current.x, y: current.y },
+          clampPosition(from.x, from.y, current.width, current.height),
+          generation
+        );
+      }, AUTONOMOUS_HOLD_MS);
+    });
   }
 
   function showCharacterMenu(actions) {
@@ -302,13 +571,20 @@ function createWindowManager({
     beginDrag,
     moveDrag,
     endDrag,
+    moveAutonomously,
+    cancelAutonomousMovement,
     showCharacterMenu,
     sendTasksUpdated: (result) => broadcast(IPC.TASKS_UPDATED, result),
+    sendProjectsUpdated: (result) => broadcast(IPC.PROJECTS_UPDATED, result),
     sendSettingsUpdated: (settings) => broadcast(IPC.SETTINGS_UPDATED, settings),
+    sendBehaviorUpdated: (behavior) => broadcast(IPC.BEHAVIOR_UPDATED, behavior),
     isMainWindowVisible: () => Boolean(mainWindow?.isVisible()),
     isKnownSender,
     setQuitting: (value) => {
       isQuitting = value;
+      if (value) {
+        clearAutonomousTimers();
+      }
     }
   };
 }

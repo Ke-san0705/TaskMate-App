@@ -10,21 +10,29 @@ function localDateKey(date) {
   return `${year}-${month}-${day}`;
 }
 
-function taskDateTime(task) {
-  const [year, month, day] = task.date.split('-').map(Number);
-  const [hour, minute] = task.time.split(':').map(Number);
-  return new Date(year, month - 1, day, hour, minute, 0, 0);
-}
-
-function notificationType(minutes) {
-  return minutes === 0 ? 'atTime' : `before-${minutes}-minutes`;
-}
-
-function notificationOffsets(settings) {
-  if (Array.isArray(settings.notificationOffsets) && settings.notificationOffsets.length > 0) {
-    return settings.notificationOffsets;
+function dateKeyToDay(dateText) {
+  if (typeof dateText !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateText)) {
+    return null;
   }
-  return [settings.notificationMinutesBefore, 0].filter(Number.isFinite);
+  const [year, month, day] = dateText.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+  return Date.UTC(year, month - 1, day) / (24 * 60 * 60 * 1000);
+}
+
+function daysUntil(dateText, today) {
+  const target = dateKeyToDay(dateText);
+  const base = dateKeyToDay(today);
+  if (!Number.isFinite(target) || !Number.isFinite(base)) {
+    return null;
+  }
+  return target - base;
 }
 
 function createNotificationScheduler({ fileManager, onNotification, onQueueEmpty }) {
@@ -65,7 +73,12 @@ function createNotificationScheduler({ fileManager, onNotification, onQueueEmpty
       time: task.time,
       genre: task.genre,
       type,
-      minutes
+      minutes,
+      source: task.source,
+      dialogueCategory: task.dialogueCategory,
+      message: task.message,
+      projectId: task.projectId,
+      projectTaskId: task.projectTaskId
     });
   }
 
@@ -86,41 +99,119 @@ function createNotificationScheduler({ fileManager, onNotification, onQueueEmpty
     }
     checking = true;
     try {
-      const [tasksResult, settings, state] = await Promise.all([
-        fileManager.getTasksResult(),
+      const [projectState, settings, state] = await Promise.all([
+        fileManager.getProjectStateResult(),
         fileManager.getSettings(),
         fileManager.getNotificationState()
       ]);
-      if (tasksResult.error) {
-        return;
-      }
 
       const now = new Date();
       const today = localDateKey(now);
-      const due = [];
-      for (const task of tasksResult.tasks) {
-        if (task.completed || !task.time || task.date !== today) {
-          continue;
+      // 長期タスク通知だけを扱います。通常タスク管理UIを廃止したため、
+      // tasks.jsonの時刻通知はここではスケジュールしません。
+      if (!projectState.error) {
+        const categories = projectState.categories || [];
+        const projects = projectState.projects || [];
+        const projectTasks = projectState.projectTasks || [];
+        const projectSettings = settings.projectSettings || {};
+        const warningDays = projectSettings.deadlineWarningDays || 7;
+        const dailyMinutes = projectSettings.dailyAvailableMinutes || 120;
+        for (const task of projectTasks) {
+          if (!task || task.status === 'completed') {
+            continue;
+          }
+          const project = projects.find((candidate) => candidate.id === task.projectId);
+          const category = categories.find((candidate) => candidate.id === project?.categoryId);
+          const taskDays = daysUntil(task.deadline, today);
+          const genre = [category?.name, project?.name].filter(Boolean).join(' / ');
+          if (task.scheduledDate === today) {
+            enqueue(
+              {
+                id: `project-today-${task.id}`,
+                title: task.title,
+                date: today,
+                time: null,
+                genre,
+                source: 'project',
+                dialogueCategory: 'daily_plan_created',
+                message: '今日行う予定の長期Todoがあります。',
+                projectId: project?.id || null,
+                projectTaskId: task.id
+              },
+              'project-scheduled-today',
+              0
+            );
+          }
+          if (taskDays !== null && taskDays < 0 && projectSettings.overdueNotificationsEnabled !== false) {
+            enqueue(
+              {
+                id: `project-overdue-${task.id}`,
+                title: task.title,
+                date: task.deadline,
+                time: null,
+                genre,
+                source: 'project',
+                dialogueCategory: 'project_overdue',
+                message: '期限超過の長期Todoがあります。',
+                projectId: project?.id || null,
+                projectTaskId: task.id
+              },
+              'project-task-overdue',
+              0
+            );
+          } else if (taskDays !== null && taskDays <= 3 && taskDays >= 0) {
+            enqueue(
+              {
+                id: `project-deadline-${task.id}`,
+                title: task.title,
+                date: task.deadline,
+                time: null,
+                genre,
+                source: 'project',
+                dialogueCategory: 'project_warning',
+                message: `期限まで残り${taskDays}日です。`,
+                projectId: project?.id || null,
+                projectTaskId: task.id
+              },
+              'project-task-deadline',
+              0
+            );
+          }
         }
-        const startsAt = taskDateTime(task);
-        for (const minutes of notificationOffsets(settings)) {
-          const type = notificationType(minutes);
-          const scheduledAt = new Date(startsAt.getTime() - minutes * 60_000);
-          const notificationSignature = signature(task, type);
-          const isDue =
-            minutes === 0
-              ? now >= startsAt
-              : now >= scheduledAt && now < startsAt;
 
-          if (isDue && !state[notificationSignature]) {
-            due.push({ task, type, minutes, at: scheduledAt });
+        if (projectSettings.progressNotificationsEnabled !== false) {
+          for (const project of projects) {
+            if (!project || project.status === 'completed' || project.status === 'paused') {
+              continue;
+            }
+            const remainingDays = daysUntil(project.deadline, today);
+            if (remainingDays === null || remainingDays < 0) {
+              continue;
+            }
+            const remainingMinutes = projectTasks
+              .filter((task) => task.projectId === project.id && task.status !== 'completed')
+              .reduce((total, task) => total + Math.max(0, task.estimatedMinutes || 0), 0);
+            if (remainingMinutes > Math.max(1, remainingDays + 1) * dailyMinutes) {
+              enqueue(
+                {
+                  id: `project-risk-${project.id}`,
+                  title: project.name,
+                  date: today,
+                  time: null,
+                  genre: '長期タスク遅延リスク',
+                  source: 'project',
+                  dialogueCategory: 'project_warning',
+                  message: '現在の予定では期限に間に合わない可能性があります。',
+                  projectId: project.id,
+                  projectTaskId: null
+                },
+                'project-delay-risk',
+                0
+              );
+            }
           }
         }
       }
-
-      due
-        .sort((a, b) => a.at - b.at || a.task.title.localeCompare(b.task.title, 'ja'))
-        .forEach(({ task, type, minutes }) => enqueue(task, type, minutes));
       cleanupState(state, now);
       await fileManager.saveNotificationState(state);
       showNext();

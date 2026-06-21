@@ -1,35 +1,90 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import AmbientStateLayer from './components/AmbientStateLayer';
 import Character from './components/Character';
+import CharacterStatusBadge from './components/CharacterStatusBadge';
 import DialogueBubble from './components/DialogueBubble';
+import ProjectManagementMode from './components/ProjectManagementMode';
 import SettingsPanel from './components/SettingsPanel';
-import TaskBubble from './components/TaskBubble';
-import UndoToast from './components/UndoToast';
 import useCharacter from './hooks/useCharacter';
+import useCharacterBehavior from './hooks/useCharacterBehavior';
 import useClickThrough from './hooks/useClickThrough';
-import useTasks from './hooks/useTasks';
 import { chooseDialogue, fillDialogue } from './utils/dialogueUtils';
-import { getOverdueTasks, getTodayTasks, getVisibleTasks } from './utils/taskUtils';
 import './styles/App.css';
 
+const WINDOW_MARGIN_PX = 12;
+const RESIZE_DEBOUNCE_MS = 90;
+const RESIZE_EPSILON_PX = 4;
+
+function readPixels(value, fallback) {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function boundsChanged(previous, next) {
+  if (!previous && !next) {
+    return false;
+  }
+  if (!previous || !next) {
+    return true;
+  }
+  return ['x', 'y', 'width', 'height'].some(
+    (key) => Math.abs(previous[key] - next[key]) > RESIZE_EPSILON_PX
+  );
+}
+
+function resizePayloadChanged(previous, next) {
+  if (!previous) {
+    return true;
+  }
+  return (
+    Math.abs(previous.width - next.width) > RESIZE_EPSILON_PX ||
+    Math.abs(previous.height - next.height) > RESIZE_EPSILON_PX ||
+    boundsChanged(previous.dragBounds, next.dragBounds)
+  );
+}
+
+function measureStageWindow(stage) {
+  const stageWidth = Math.ceil(stage.offsetWidth);
+  const stageHeight = Math.ceil(stage.offsetHeight);
+  if (stageWidth <= 0 || stageHeight <= 0) {
+    return null;
+  }
+
+  const stageStyle = window.getComputedStyle(stage);
+  const stageLeft = readPixels(stageStyle.left, WINDOW_MARGIN_PX);
+  const stageBottom = readPixels(stageStyle.bottom, WINDOW_MARGIN_PX);
+  const width = Math.ceil(stageWidth + stageLeft + WINDOW_MARGIN_PX);
+  const height = Math.ceil(stageHeight + stageBottom + WINDOW_MARGIN_PX);
+  const character = stage.querySelector('.character');
+  let dragBounds = null;
+
+  if (character && character.offsetWidth > 0 && character.offsetHeight > 0) {
+    dragBounds = {
+      x: Math.round(stageLeft + character.offsetLeft),
+      y: Math.round(height - stageBottom - stageHeight + character.offsetTop),
+      width: Math.ceil(character.offsetWidth),
+      height: Math.ceil(character.offsetHeight)
+    };
+  }
+
+  return { width, height, dragBounds };
+}
+
 function MainView() {
-  const { tasks, error, completeTask, undoCompleteTask } = useTasks();
   const { character, settings, loading: characterLoading } = useCharacter();
+  const { behavior, recordInteraction } = useCharacterBehavior();
   const [expanded, setExpanded] = useState(false);
   const [notification, setNotification] = useState(null);
   const [clickActive, setClickActive] = useState(false);
   const [clickDialogueActive, setClickDialogueActive] = useState(false);
   const [dialogue, setDialogue] = useState('今日も一緒に進めよう！');
-  const [undoItems, setUndoItems] = useState([]);
   const stageRef = useRef(null);
   const clickTimerRef = useRef(null);
   const dialogueTimerRef = useRef(null);
   const lastDialogueRef = useRef('');
+  const lastResizeRef = useRef(null);
 
   useClickThrough(true);
-
-  const visibleTasks = useMemo(() => getVisibleTasks(tasks), [tasks]);
-  const todayTasks = useMemo(() => getTodayTasks(visibleTasks), [visibleTasks]);
-  const overdueTasks = useMemo(() => getOverdueTasks(visibleTasks), [visibleTasks]);
 
   const chooseAndSetDialogue = useCallback(
     (category, variables = {}) => {
@@ -45,31 +100,36 @@ function MainView() {
     [character?.dialogues]
   );
 
-  // タスク状況が変わったら、通常時の案内セリフも更新します。
+  // 長期タスク管理だけを表示するため、通常タスク件数には依存しない案内にします。
+  // 通知やクリックの一時セリフが出ている間は、それらを優先して上書きしません。
   useEffect(() => {
     if (notification || clickDialogueActive || characterLoading) {
       return;
     }
-    if (error || character?.error) {
+    if (character?.error) {
       chooseAndSetDialogue('loadError');
-    } else if (overdueTasks.length > 0) {
-      chooseAndSetDialogue('overdue', { count: overdueTasks.length });
-    } else if (todayTasks.length === 0) {
-      chooseAndSetDialogue('noTasks');
-    } else if (todayTasks.length === 1) {
-      chooseAndSetDialogue('oneTask', todayTasks[0]);
+    } else if (behavior.dialogueCategory) {
+      chooseAndSetDialogue(behavior.dialogueCategory, {
+        ...(behavior.dialogueVariables || {})
+      });
+    } else if (
+      behavior.reason === 'quiet-hours' ||
+      behavior.reason === 'main-window-hidden' ||
+      behavior.reason === 'level-cooldown'
+    ) {
+      return;
     } else {
-      chooseAndSetDialogue('multipleTasks', { count: todayTasks.length });
+      chooseAndSetDialogue('longTermIdle');
     }
   }, [
+    behavior.dialogueCategory,
+    behavior.dialogueVariables,
+    behavior.reason,
     character?.error,
     characterLoading,
     chooseAndSetDialogue,
     clickDialogueActive,
-    error,
-    notification,
-    overdueTasks,
-    todayTasks
+    notification
   ]);
 
   useEffect(() => {
@@ -101,28 +161,39 @@ function MainView() {
     if (!notification) {
       return;
     }
-    const category = notification.minutes > 0 ? 'deadlineNear' : 'deadlineNow';
+    const category =
+      notification.dialogueCategory ||
+      (notification.minutes > 0 ? 'deadlineNear' : 'deadlineNow');
     chooseAndSetDialogue(category, notification);
   }, [chooseAndSetDialogue, notification]);
 
   useEffect(() => {
-    if (!stageRef.current) {
+    const stage = stageRef.current;
+    if (!stage) {
       return undefined;
     }
     let frame = null;
-    const observer = new ResizeObserver(([entry]) => {
+    let timer = null;
+    const scheduleResize = () => {
       cancelAnimationFrame(frame);
+      clearTimeout(timer);
       frame = requestAnimationFrame(() => {
-        const rect = entry.target.getBoundingClientRect();
-        window.taskMate.resizeMainWindow({
-          width: Math.ceil(rect.width + 24),
-          height: Math.ceil(rect.height + 24)
-        });
+        timer = setTimeout(() => {
+          const next = measureStageWindow(stage);
+          if (!next || !resizePayloadChanged(lastResizeRef.current, next)) {
+            return;
+          }
+          lastResizeRef.current = next;
+          window.taskMate.resizeMainWindow(next);
+        }, RESIZE_DEBOUNCE_MS);
       });
-    });
-    observer.observe(stageRef.current);
+    };
+    const observer = new ResizeObserver(scheduleResize);
+    observer.observe(stage);
+    scheduleResize();
     return () => {
       cancelAnimationFrame(frame);
+      clearTimeout(timer);
       observer.disconnect();
     };
   }, []);
@@ -139,6 +210,7 @@ function MainView() {
     if (notification) {
       return;
     }
+    recordInteraction('character-click');
     clearTimeout(clickTimerRef.current);
     clearTimeout(dialogueTimerRef.current);
     setClickActive(true);
@@ -151,31 +223,6 @@ function MainView() {
       setClickDialogueActive(false);
     }, Math.max(settings.clickImageDuration + 1800, 3500));
   }
-
-  async function handleComplete(taskId) {
-    try {
-      const completedTask = await completeTask(taskId);
-      setUndoItems((current) => [
-        ...current.filter((item) => item.id !== completedTask.id),
-        { id: completedTask.id, title: completedTask.title }
-      ]);
-    } catch (completeError) {
-      setDialogue(`完了状態を保存できませんでした: ${completeError.message}`);
-    }
-  }
-
-  async function handleUndo(taskId) {
-    try {
-      await undoCompleteTask(taskId);
-      setUndoItems((current) => current.filter((item) => item.id !== taskId));
-    } catch (undoError) {
-      setDialogue(`元に戻せませんでした: ${undoError.message}`);
-    }
-  }
-
-  const handleUndoExpire = useCallback((taskId) => {
-    setUndoItems((current) => current.filter((item) => item.id !== taskId));
-  }, []);
 
   async function acknowledgeNotification() {
     if (!notification) {
@@ -191,10 +238,10 @@ function MainView() {
     }
   }
 
-  const state = notification ? 'alarm' : clickActive ? 'click' : 'wait';
+  const state = notification ? 'notifying' : clickActive ? 'clicked' : behavior.mood || 'calm';
   const showCharacter = settings.showCharacter !== false;
   const showDialogue = showCharacter || Boolean(notification);
-  const showTaskList = (expanded || !showCharacter) && !notification?.notificationOnly;
+  const showProjectMode = !notification?.notificationOnly;
   const characterScale = settings.characterScale / 100;
   const bubbleScale = settings.bubbleScale / 100;
 
@@ -206,7 +253,10 @@ function MainView() {
 
   return (
     <main
-      className={`mascot-root${showCharacter ? '' : ' mascot-root--app-mode'}`}
+      className={`mascot-root${showCharacter ? '' : ' mascot-root--app-mode'}${
+        showProjectMode ? ' mascot-root--project-mode' : ''
+      }`}
+      data-mood={behavior.mood || 'calm'}
       style={{
         '--character-scale': characterScale,
         '--bubble-scale': bubbleScale
@@ -216,6 +266,12 @@ function MainView() {
         ref={stageRef}
         className={`mascot-stage${showCharacter ? '' : ' mascot-stage--character-hidden'}`}
       >
+        <AmbientStateLayer
+          mood={behavior.mood || 'calm'}
+          level={behavior.ambientLevel}
+          enabled={settings.ambientEffects !== false && settings.behaviorEnabled !== false}
+        />
+
         {showCharacter && (
           <Character
             state={state}
@@ -227,6 +283,8 @@ function MainView() {
         )}
 
         <div className="bubble-stack">
+          {showCharacter && <CharacterStatusBadge mood={state} />}
+
           {showDialogue && (
             <DialogueBubble
               text={dialogue}
@@ -236,6 +294,9 @@ function MainView() {
                 if (notification) {
                   acknowledgeNotification();
                 } else {
+                  if (!expanded) {
+                    recordInteraction('task-list-open');
+                  }
                   setExpanded((value) => !value);
                 }
               }}
@@ -244,28 +305,15 @@ function MainView() {
             />
           )}
 
-          {showTaskList && (
-            <TaskBubble
-              tasks={visibleTasks}
-              onComplete={handleComplete}
-              onClose={() => {
-                if (showCharacter) {
-                  setExpanded(false);
-                } else {
-                  window.taskMate.hideMainWindow();
-                }
-              }}
-              onOpenSettings={() => window.taskMate.openSettings()}
+          {showProjectMode && (
+            <ProjectManagementMode
+              settings={settings}
+              onDialogue={chooseAndSetDialogue}
+              compact
             />
           )}
         </div>
       </section>
-
-      <UndoToast
-        items={undoItems}
-        onUndo={handleUndo}
-        onExpire={handleUndoExpire}
-      />
     </main>
   );
 }

@@ -3,13 +3,27 @@ const path = require('path');
 const crypto = require('crypto');
 const { DEFAULT_SETTINGS, REQUIRED_CHARACTER_FILES } = require('./constants');
 const { createPathResolver } = require('./paths');
+const { createProjectStore } = require('./projectStore');
+const {
+  createDefaultLifeState,
+  normalizeLifeState
+} = require('../behavior/relationshipEngine');
 
 const fsPromises = fs.promises;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const PRIORITIES = new Set(['high', 'normal', 'low']);
+const BEHAVIOR_INTENSITIES = new Set(['low', 'normal', 'high']);
 const MAX_NOTIFICATION_OFFSET_MINUTES = 24 * 60;
 const MAX_NOTIFICATION_RULES = 8;
+const PROJECT_SETTING_LIMITS = Object.freeze({
+  dailyAvailableMinutes: [15, 24 * 60],
+  weekdayAvailableMinutes: [15, 24 * 60],
+  weekendAvailableMinutes: [15, 24 * 60],
+  defaultSessionMinutes: [5, 240],
+  dailyRecommendationLimit: [1, 20],
+  deadlineWarningDays: [1, 60]
+});
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -55,7 +69,7 @@ function validateTask(task, index) {
     throw new Error(`${task.title}のcompletedが真偽値ではありません。`);
   }
 
-  return {
+  const normalized = {
     id: task.id.trim(),
     title: task.title.trim(),
     description: typeof task.description === 'string' ? task.description : '',
@@ -65,6 +79,23 @@ function validateTask(task, index) {
     priority: task.priority,
     completed: task.completed
   };
+  if (task.source === 'project' && typeof task.projectTaskId === 'string') {
+    normalized.source = 'project';
+    normalized.projectTaskId = task.projectTaskId;
+    normalized.projectId = typeof task.projectId === 'string' ? task.projectId : null;
+    normalized.projectName =
+      typeof task.projectName === 'string' ? task.projectName : '未分類プロジェクト';
+    normalized.projectCategoryId =
+      typeof task.projectCategoryId === 'string' ? task.projectCategoryId : null;
+    normalized.projectCategoryName =
+      typeof task.projectCategoryName === 'string' ? task.projectCategoryName : '未分類';
+    normalized.projectMilestoneId =
+      typeof task.projectMilestoneId === 'string' ? task.projectMilestoneId : null;
+    normalized.projectMilestoneTitle =
+      typeof task.projectMilestoneTitle === 'string' ? task.projectMilestoneTitle : '';
+  }
+
+  return normalized;
 }
 
 function validateTasks(value) {
@@ -107,7 +138,15 @@ function normalizeTaskInput(taskInput) {
       priority:
         typeof taskInput.priority === 'string' ? taskInput.priority.trim() : 'normal',
       completed:
-        typeof taskInput.completed === 'boolean' ? taskInput.completed : false
+        typeof taskInput.completed === 'boolean' ? taskInput.completed : false,
+      source: taskInput.source,
+      projectTaskId: taskInput.projectTaskId,
+      projectId: taskInput.projectId,
+      projectName: taskInput.projectName,
+      projectCategoryId: taskInput.projectCategoryId,
+      projectCategoryName: taskInput.projectCategoryName,
+      projectMilestoneId: taskInput.projectMilestoneId,
+      projectMilestoneTitle: taskInput.projectMilestoneTitle
     },
     0
   );
@@ -139,6 +178,50 @@ function normalizeNotificationOffsets(source) {
 
   const result = normalized.length > 0 ? normalized : DEFAULT_SETTINGS.notificationOffsets;
   return [...result].sort((a, b) => b - a);
+}
+
+function normalizeQuietHours(source) {
+  const quietHours = isPlainObject(source.quietHours) ? source.quietHours : {};
+  const isValidTime = (value) => typeof value === 'string' && TIME_PATTERN.test(value);
+  return {
+    enabled:
+      typeof quietHours.enabled === 'boolean'
+        ? quietHours.enabled
+        : DEFAULT_SETTINGS.quietHours.enabled,
+    start: isValidTime(quietHours.start)
+      ? quietHours.start
+      : DEFAULT_SETTINGS.quietHours.start,
+    end: isValidTime(quietHours.end) ? quietHours.end : DEFAULT_SETTINGS.quietHours.end
+  };
+}
+
+function normalizeProjectSettings(source) {
+  const settings = isPlainObject(source.projectSettings) ? source.projectSettings : {};
+  const defaults = DEFAULT_SETTINGS.projectSettings;
+  const clampSetting = (key) => {
+    const [min, max] = PROJECT_SETTING_LIMITS[key];
+    const value = Number(settings[key]);
+    if (!Number.isFinite(value)) {
+      return defaults[key];
+    }
+    return Math.min(max, Math.max(min, Math.round(value)));
+  };
+  return {
+    dailyAvailableMinutes: clampSetting('dailyAvailableMinutes'),
+    weekdayAvailableMinutes: clampSetting('weekdayAvailableMinutes'),
+    weekendAvailableMinutes: clampSetting('weekendAvailableMinutes'),
+    defaultSessionMinutes: clampSetting('defaultSessionMinutes'),
+    dailyRecommendationLimit: clampSetting('dailyRecommendationLimit'),
+    deadlineWarningDays: clampSetting('deadlineWarningDays'),
+    overdueNotificationsEnabled:
+      typeof settings.overdueNotificationsEnabled === 'boolean'
+        ? settings.overdueNotificationsEnabled
+        : defaults.overdueNotificationsEnabled,
+    progressNotificationsEnabled:
+      typeof settings.progressNotificationsEnabled === 'boolean'
+        ? settings.progressNotificationsEnabled
+        : defaults.progressNotificationsEnabled
+  };
 }
 
 function normalizeSettings(value) {
@@ -187,7 +270,32 @@ function normalizeSettings(value) {
       typeof source.isMainWindowVisible === 'boolean'
         ? source.isMainWindowVisible
         : DEFAULT_SETTINGS.isMainWindowVisible,
-    genreHistory: genreHistory.sort((a, b) => a.localeCompare(b, 'ja'))
+    genreHistory: genreHistory.sort((a, b) => a.localeCompare(b, 'ja')),
+    behaviorEnabled:
+      typeof source.behaviorEnabled === 'boolean'
+        ? source.behaviorEnabled
+        : DEFAULT_SETTINGS.behaviorEnabled,
+    ambientEffects:
+      typeof source.ambientEffects === 'boolean'
+        ? source.ambientEffects
+        : DEFAULT_SETTINGS.ambientEffects,
+    autonomousMovement:
+      typeof source.autonomousMovement === 'boolean'
+        ? source.autonomousMovement
+        : DEFAULT_SETTINGS.autonomousMovement,
+    completionReactions:
+      typeof source.completionReactions === 'boolean'
+        ? source.completionReactions
+        : DEFAULT_SETTINGS.completionReactions,
+    relationshipMemoryEnabled:
+      typeof source.relationshipMemoryEnabled === 'boolean'
+        ? source.relationshipMemoryEnabled
+        : DEFAULT_SETTINGS.relationshipMemoryEnabled,
+    behaviorIntensity: BEHAVIOR_INTENSITIES.has(source.behaviorIntensity)
+      ? source.behaviorIntensity
+      : DEFAULT_SETTINGS.behaviorIntensity,
+    quietHours: normalizeQuietHours(source),
+    projectSettings: normalizeProjectSettings(source)
   };
 }
 
@@ -267,11 +375,19 @@ function createFileManager(app) {
     await safeWriteJson(destination, fallback);
   }
 
+  async function saveTasks(tasks) {
+    // 通常タスクとプロジェクトタスクの同期時も、既存と同じatomic write経路を必ず通します。
+    // 途中でアプリが終了してもtasks.jsonが半端な状態になりにくくするためです。
+    await safeWriteJson(paths.tasksFile, validateTasks(tasks));
+  }
+
   async function ensureInitialFiles() {
     await fsPromises.mkdir(paths.dataRoot, { recursive: true });
     await copyBundledFileIfMissing('tasks.json', []);
     await copyBundledFileIfMissing('settings.json', clone(DEFAULT_SETTINGS));
     await copyBundledFileIfMissing('notification-state.json', {});
+    await copyBundledFileIfMissing('life-state.json', createDefaultLifeState());
+    await projectStore.ensureInitialFiles();
   }
 
   async function getTasks() {
@@ -297,7 +413,12 @@ function createFileManager(app) {
       throw new Error('対象のタスクが見つかりません。');
     }
     task.completed = completed;
-    await safeWriteJson(paths.tasksFile, tasks);
+    await saveTasks(tasks);
+    if (task.projectTaskId) {
+      // 通常タスクとしてチェックされた場合も、元の長期プロジェクトタスクを同じ完了状態へ寄せます。
+      // 複製ではなく参照同期にすることで、二つの画面で進捗が食い違うことを防ぎます。
+      await projectStore.setProjectTaskCompletedFromNormal(task.projectTaskId, completed);
+    }
     return { task, tasks };
   }
 
@@ -308,7 +429,7 @@ function createFileManager(app) {
       task.id = `task-${crypto.randomUUID()}`;
     }
     const nextTasks = [...tasks, task];
-    await safeWriteJson(paths.tasksFile, nextTasks);
+    await saveTasks(nextTasks);
     return { task, tasks: nextTasks };
   }
 
@@ -352,9 +473,12 @@ function createFileManager(app) {
       current.completed !== task.completed;
     const nextTasks = [...tasks];
     nextTasks[index] = task;
-    await safeWriteJson(paths.tasksFile, nextTasks);
+    await saveTasks(nextTasks);
     if (scheduleChanged) {
       await clearNotificationStateForTask(taskId);
+    }
+    if (task.projectTaskId) {
+      await projectStore.syncProjectTaskFromNormalTask(task);
     }
     return { task, tasks: nextTasks };
   }
@@ -369,8 +493,9 @@ function createFileManager(app) {
       throw new Error('削除対象のタスクが見つかりません。');
     }
     const nextTasks = tasks.filter((candidate) => candidate.id !== taskId);
-    await safeWriteJson(paths.tasksFile, nextTasks);
+    await saveTasks(nextTasks);
     await clearNotificationStateForTask(taskId);
+    await projectStore.unlinkNormalTask(taskId);
 
     return { task, tasks: nextTasks };
   }
@@ -403,7 +528,15 @@ function createFileManager(app) {
       'notificationOffsets',
       'useNativeNotifications',
       'isMainWindowVisible',
-      'genreHistory'
+      'genreHistory',
+      'behaviorEnabled',
+      'ambientEffects',
+      'autonomousMovement',
+      'completionReactions',
+      'relationshipMemoryEnabled',
+      'behaviorIntensity',
+      'quietHours',
+      'projectSettings'
     ]);
     const accepted = {};
     for (const [key, value] of Object.entries(partialSettings)) {
@@ -493,6 +626,26 @@ function createFileManager(app) {
       error = error || 'キャラクター画像の一部が見つかりません。';
     }
 
+    // ver1.1.0の状態画像は任意です。キャラクターパック側に追加画像がなければ、
+    // 既存ver1.0.0のwait/click/alarm画像へ安全にフォールバックします。
+    const optionalImageFallbacks = {
+      calm: images.wait,
+      attentive: images.wait,
+      restless: images.wait,
+      anxious: images.alarm || images.wait,
+      overloaded: images.alarm || images.wait,
+      focusing: images.wait,
+      reconnecting: images.wait,
+      relieved: images.click || images.wait,
+      celebrating: images.click || images.wait,
+      notifying: images.alarm || images.wait,
+      clicked: images.click || images.wait
+    };
+    for (const [stateName, fallbackImage] of Object.entries(optionalImageFallbacks)) {
+      images[stateName] =
+        (await imageAsDataUrl(path.join(folder, `${stateName}.png`))) || fallbackImage;
+    }
+
     return {
       name: characterName,
       valid: character.valid,
@@ -529,6 +682,41 @@ function createFileManager(app) {
     await safeWriteJson(paths.notificationStateFile, state);
   }
 
+  async function getLifeState() {
+    try {
+      return normalizeLifeState(await readJson(paths.lifeStateFile));
+    } catch (error) {
+      console.error('life-state.jsonを読み込めないため、既定値へ復旧します。', error);
+      const state = createDefaultLifeState();
+      await safeWriteJson(paths.lifeStateFile, state);
+      return state;
+    }
+  }
+
+  async function saveLifeState(state) {
+    // life-stateは行動履歴を含むため、保存前に必ず正規化します。
+    // 壊れた値や想定外のinteraction名をそのまま永続化しないことで、
+    // 次回起動時のクラッシュと不自然な再訪演出を防ぎます。
+    await safeWriteJson(paths.lifeStateFile, normalizeLifeState(state));
+  }
+
+  async function resetLifeState() {
+    const state = createDefaultLifeState();
+    await safeWriteJson(paths.lifeStateFile, state);
+    return state;
+  }
+
+  const projectStore = createProjectStore({
+    paths,
+    readJson,
+    safeWriteJson,
+    ensureJsonFile: copyBundledFileIfMissing,
+    getTasks,
+    saveTasks,
+    normalizeTaskInput,
+    clearNotificationStateForTask
+  });
+
   return {
     paths,
     ensureInitialFiles,
@@ -544,7 +732,25 @@ function createFileManager(app) {
     getCharacterData,
     selectCharacter,
     getNotificationState,
-    saveNotificationState
+    saveNotificationState,
+    getLifeState,
+    saveLifeState,
+    resetLifeState,
+    getProjectStateResult: projectStore.getProjectStateResult,
+    createProjectCategory: projectStore.createCategory,
+    updateProjectCategory: projectStore.updateCategory,
+    deleteProjectCategory: projectStore.deleteCategory,
+    createProject: projectStore.createProject,
+    updateProject: projectStore.updateProject,
+    deleteProject: projectStore.deleteProject,
+    createProjectMilestone: projectStore.createMilestone,
+    updateProjectMilestone: projectStore.updateMilestone,
+    deleteProjectMilestone: projectStore.deleteMilestone,
+    createProjectTask: projectStore.createProjectTask,
+    updateProjectTask: projectStore.updateProjectTask,
+    deleteProjectTask: projectStore.deleteProjectTask,
+    completeProjectTask: projectStore.completeProjectTask,
+    addProjectTaskToToday: projectStore.addProjectTaskToToday
   };
 }
 

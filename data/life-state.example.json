@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "createdAt": "2026-06-17T00:00:00.000Z",
+  "firstLaunchAt": "2026-06-17T00:00:00.000Z",
+  "lastLaunchAt": null,
+  "lastActiveDate": null,
+  "activeDates": [],
+  "activeDays": 0,
+  "visitCount": 0,
+  "completedTaskCount": 0,
+  "completedToday": 0,
+  "todayCompletionDate": "2026-06-17",
+  "celebratedDates": [],
+  "lastReconnectDate": null,
+  "lastCompletedAt": null,
+  "focusTaskId": null,
+  "relationshipStage": "new",
+  "interactions": [],
+  "behavior": {
+    "lastActionAt": null,
+    "lastActionId": null,
+    "lastDialogueAt": null,
+    "recentActions": [],
+    "recentDialogueCategories": []
+  }
+}

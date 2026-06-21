@@ -1,0 +1,44 @@
+[
+  {
+    "id": "category-learning",
+    "name": "学習",
+    "description": "授業、試験、資格学習など",
+    "createdAt": "2026-06-19T00:00:00.000Z",
+    "updatedAt": "2026-06-19T00:00:00.000Z"
+  },
+  {
+    "id": "category-research",
+    "name": "研究",
+    "description": "研究テーマ、調査、発表準備など",
+    "createdAt": "2026-06-19T00:00:00.000Z",
+    "updatedAt": "2026-06-19T00:00:00.000Z"
+  },
+  {
+    "id": "category-club",
+    "name": "部活動",
+    "description": "練習、大会準備、チーム活動など",
+    "createdAt": "2026-06-19T00:00:00.000Z",
+    "updatedAt": "2026-06-19T00:00:00.000Z"
+  },
+  {
+    "id": "category-development",
+    "name": "個人開発",
+    "description": "制作、技術検証、改善タスクなど",
+    "createdAt": "2026-06-19T00:00:00.000Z",
+    "updatedAt": "2026-06-19T00:00:00.000Z"
+  },
+  {
+    "id": "category-event",
+    "name": "イベント",
+    "description": "行事、発表会、交流会などの準備",
+    "createdAt": "2026-06-19T00:00:00.000Z",
+    "updatedAt": "2026-06-19T00:00:00.000Z"
+  },
+  {
+    "id": "category-other",
+    "name": "その他",
+    "description": "分類に迷う長期課題",
+    "createdAt": "2026-06-19T00:00:00.000Z",
+    "updatedAt": "2026-06-19T00:00:00.000Z"
+  }
+]

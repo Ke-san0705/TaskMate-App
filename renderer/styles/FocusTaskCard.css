@@ -1,0 +1,104 @@
+.focus-task {
+  pointer-events: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: calc(10px * var(--bubble-scale));
+  align-items: center;
+  width: calc(285px * var(--bubble-scale));
+  padding: calc(10px * var(--bubble-scale));
+  border: 1px solid rgba(52, 49, 45, 0.22);
+  border-left: 5px solid #5f9aa4;
+  border-radius: calc(12px * var(--bubble-scale));
+  background: rgba(255, 253, 248, 0.96);
+  box-shadow: 0 calc(10px * var(--bubble-scale)) calc(24px * var(--bubble-scale))
+    rgba(30, 37, 44, 0.12);
+  color: #242220;
+}
+
+.focus-task--warning {
+  border-left-color: #c89b38;
+}
+
+.focus-task--urgent,
+.focus-task--overdue {
+  border-left-color: #b66756;
+}
+
+.focus-task--focused {
+  border-left-color: #617fc4;
+  background: rgba(247, 250, 255, 0.98);
+}
+
+.focus-task__content {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.focus-task__content span {
+  color: #59646f;
+  font-size: calc(8px * var(--bubble-scale));
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.focus-task__content strong {
+  min-width: 0;
+  font-size: calc(13px * var(--bubble-scale));
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.focus-task__content small {
+  color: #746d64;
+  font-size: calc(9px * var(--bubble-scale));
+  font-weight: 800;
+}
+
+.focus-task__actions {
+  display: grid;
+  gap: calc(5px * var(--bubble-scale));
+}
+
+.focus-task__actions button {
+  min-width: calc(58px * var(--bubble-scale));
+  border: 1px solid #b9afa1;
+  border-radius: 999px;
+  padding: calc(6px * var(--bubble-scale)) calc(9px * var(--bubble-scale));
+  background: #fff;
+  color: #312d29;
+  font-size: calc(10px * var(--bubble-scale));
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.focus-task__actions button:first-child {
+  border-color: #5f9aa4;
+  background: #edf7f8;
+}
+
+.character-status {
+  pointer-events: none;
+  justify-self: start;
+  width: max-content;
+  max-width: calc(180px * var(--bubble-scale));
+  padding: calc(5px * var(--bubble-scale)) calc(9px * var(--bubble-scale));
+  border: 1px solid rgba(52, 49, 45, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.9);
+  color: #4e5964;
+  font-size: calc(9px * var(--bubble-scale));
+  font-weight: 900;
+}
+
+.character-status--restless,
+.character-status--anxious,
+.character-status--overloaded {
+  color: #8a4e3f;
+}
+
+.character-status--relieved,
+.character-status--celebrating {
+  color: #416f52;
+}

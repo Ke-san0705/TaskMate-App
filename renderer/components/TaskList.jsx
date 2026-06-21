@@ -1,7 +1,7 @@
 import TaskItem from './TaskItem';
 import { getOverdueTasks, getTodayTasks } from '../utils/taskUtils';
 
-function TaskSection({ title, tasks, overdue, onComplete }) {
+function TaskSection({ title, tasks, overdue, onComplete, onFocusTask, focusTaskId }) {
   if (tasks.length === 0) {
     return null;
   }
@@ -14,14 +14,21 @@ function TaskSection({ title, tasks, overdue, onComplete }) {
       </h3>
       <ul>
         {tasks.map((task) => (
-          <TaskItem key={task.id} task={task} overdue={overdue} onComplete={onComplete} />
+          <TaskItem
+            key={task.id}
+            task={task}
+            overdue={overdue}
+            onComplete={onComplete}
+            onFocusTask={onFocusTask}
+            focused={focusTaskId === task.id}
+          />
         ))}
       </ul>
     </section>
   );
 }
 
-export default function TaskList({ tasks, onComplete }) {
+export default function TaskList({ tasks, onComplete, onFocusTask, focusTaskId }) {
   const overdueTasks = getOverdueTasks(tasks);
   const todayTasks = getTodayTasks(tasks);
 
@@ -42,8 +49,16 @@ export default function TaskList({ tasks, onComplete }) {
         tasks={overdueTasks}
         overdue
         onComplete={onComplete}
+        onFocusTask={onFocusTask}
+        focusTaskId={focusTaskId}
       />
-      <TaskSection title="今日" tasks={todayTasks} onComplete={onComplete} />
+      <TaskSection
+        title="今日"
+        tasks={todayTasks}
+        onComplete={onComplete}
+        onFocusTask={onFocusTask}
+        focusTaskId={focusTaskId}
+      />
     </div>
   );
 }
