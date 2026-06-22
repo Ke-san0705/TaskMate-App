@@ -12,6 +12,8 @@ const IPC = Object.freeze({
   GET_CHARACTERS: 'taskmate:get-characters',
   GET_CHARACTER_DATA: 'taskmate:get-character-data',
   SELECT_CHARACTER: 'taskmate:select-character',
+  EXPORT_CHARACTER_PACK: 'taskmate:export-character-pack',
+  SAVE_CLOUD_CHARACTER_PACK: 'taskmate:save-cloud-character-pack',
   SET_CLICK_THROUGH: 'taskmate:set-click-through',
   BEGIN_WINDOW_DRAG: 'taskmate:begin-window-drag',
   MOVE_WINDOW_DRAG: 'taskmate:move-window-drag',

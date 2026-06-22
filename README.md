@@ -2,7 +2,7 @@
 
 ## 概要
 
-TaskMate v1.1.5は、デスクトップ上のキャラクターと一緒にタスク管理を行うWindows向けアプリです。キャラクターがタスクの状況に応じて声をかけ、期限管理や作業の継続を支援します。
+TaskMate v1.2.0は、デスクトップ上のキャラクターと一緒にタスク管理を行うWindows向けアプリです。キャラクターがタスクの状況に応じて声をかけ、期限管理や作業の継続を支援します。
 
 Electron、React、Viteで構成され、キャラクター、漫画風の吹き出し、ローカルJSON保存、Windows通知、システムトレイ、設定画面を備えています。キャラクターはユーザーを責める存在ではなく、デスクトップ上でタスク状況を一緒に見ている存在です。
 
@@ -13,7 +13,7 @@ Electron、React、Viteで構成され、キャラクター、漫画風の吹き
 
 ## インストール方法
 
-1. GitHub Releasesから最新版の`TaskMate-Setup-x.x.x.exe`をダウンロードします。
+1. GitHub Releasesから最新版の`TaskMate-Installer-x.x.x.exe`をダウンロードします。
 2. セットアップexeを実行します。
 3. 画面の指示に従ってインストールします。
 4. デスクトップショートカットまたはスタートメニューからTaskMateを起動します。
@@ -58,7 +58,7 @@ PowerShellの実行ポリシーで`npm.ps1`がブロックされる場合:
 npm.cmd run dist
 ```
 
-生成されたInstallerは`dist/TaskMate-Setup-x.x.x.exe`として出力されます。生成済みexeはリポジトリに含めず、GitHub Releasesへ配置する方針です。
+生成されたInstallerは`dist/TaskMate-Installer-x.x.x.exe`として出力されます。生成済みexeはリポジトリに含めず、GitHub Releasesへ配置する方針です。
 
 ## 注意
 

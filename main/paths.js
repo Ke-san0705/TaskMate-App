@@ -13,6 +13,7 @@ function createPathResolver(app) {
     dataRoot: writableDataRoot,
     bundledDataRoot: path.join(resourceRoot, 'data'),
     charactersRoot: path.join(resourceRoot, 'Chara'),
+    customCharactersRoot: path.join(writableDataRoot, 'characters'),
     assetsRoot: path.join(resourceRoot, 'assets'),
     tasksFile: path.join(writableDataRoot, 'tasks.json'),
     settingsFile: path.join(writableDataRoot, 'settings.json'),

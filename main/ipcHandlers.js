@@ -147,6 +147,16 @@ function registerIpcHandlers({
     await onSettingsChanged(settings);
     return settings;
   });
+  handle(IPC.EXPORT_CHARACTER_PACK, (_event, characterName) =>
+    fileManager.exportCharacterPack(characterName)
+  );
+  handle(IPC.SAVE_CLOUD_CHARACTER_PACK, async (_event, characterPack) => {
+    if (!isPlainObject(characterPack)) {
+      throw new Error('キャラクターパックの形式が不正です。');
+    }
+    const result = await fileManager.saveCloudCharacterPack(characterPack);
+    return result;
+  });
   handle(IPC.END_WINDOW_DRAG, async () => {
     const position = windowManager.endDrag();
     if (!position) {

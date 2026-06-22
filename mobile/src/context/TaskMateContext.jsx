@@ -13,6 +13,7 @@ const taskRepository = require('../repositories/taskRepository');
 const settingsRepository = require('../repositories/settingsRepository');
 const lifeStateRepository = require('../repositories/lifeStateRepository');
 const characterRepository = require('../repositories/characterRepository');
+const accountSync = require('../services/characterCloudSync');
 const notificationService = require('../services/notificationService');
 const { STORAGE_KEYS } = require('../constants/defaults');
 const { log, warn } = require('../utils/logger');
@@ -45,6 +46,8 @@ function TaskMateProvider({ children }) {
   const [undoItem, setUndoItem] = React.useState(null);
   const [clock, setClock] = React.useState(new Date());
   const [notificationTaskId, setNotificationTaskId] = React.useState(null);
+  const [accountSession, setAccountSession] = React.useState(null);
+  const [cloudCharacters, setCloudCharacters] = React.useState([]);
   const lastDialogueRef = React.useRef('');
   const [dialogue, setDialogue] = React.useState('今日も一つずつ見よう。');
 
@@ -103,6 +106,27 @@ function TaskMateProvider({ children }) {
     setSelectedCharacter(currentCharacter);
     return { loadedCharacters, currentCharacter };
   }, []);
+
+  const refreshAccount = React.useCallback(async () => {
+    if (!accountSync.isSupabaseConfigured) {
+      setAccountSession(null);
+      setCloudCharacters([]);
+      return null;
+    }
+    const session = await accountSync.getAccountSession();
+    setAccountSession(session);
+    return session;
+  }, []);
+
+  const refreshCloudCharacters = React.useCallback(async () => {
+    if (!accountSync.isSupabaseConfigured || !accountSession) {
+      setCloudCharacters([]);
+      return [];
+    }
+    const next = await accountSync.listCloudCharacterPacks();
+    setCloudCharacters(next);
+    return next;
+  }, [accountSession]);
 
   const refreshTasksAndLife = React.useCallback(async (options = {}) => {
     const now = new Date();
@@ -170,10 +194,18 @@ function TaskMateProvider({ children }) {
   React.useEffect(() => {
     let mounted = true;
     initialize();
+    refreshAccount().catch((accountError) => {
+      if (mounted) {
+        setError(messageFromError(accountError));
+      }
+    });
     const appStateSubscription = AppState.addEventListener('change', (state) => {
       if (state === 'active' && mounted) {
         refreshTasksAndLife().catch((activeError) => {
           setError(messageFromError(activeError));
+        });
+        refreshAccount().catch((accountError) => {
+          setError(messageFromError(accountError));
         });
       }
     });
@@ -190,7 +222,22 @@ function TaskMateProvider({ children }) {
       appStateSubscription.remove();
       notificationSubscription.remove();
     };
-  }, [initialize, refreshTasksAndLife]);
+  }, [initialize, refreshAccount, refreshTasksAndLife]);
+
+  React.useEffect(() => {
+    if (!accountSync.isSupabaseConfigured) {
+      return undefined;
+    }
+    return accountSync.onAccountStateChange((session) => {
+      setAccountSession(session);
+    });
+  }, []);
+
+  React.useEffect(() => {
+    refreshCloudCharacters().catch((syncError) => {
+      setError(messageFromError(syncError));
+    });
+  }, [refreshCloudCharacters]);
 
   async function createTask(input) {
     try {
@@ -353,6 +400,72 @@ function TaskMateProvider({ children }) {
     return character;
   }
 
+  async function signInAccount(email, password) {
+    try {
+      const session = await accountSync.signInWithEmail(email, password);
+      setAccountSession(session);
+      return session;
+    } catch (actionError) {
+      setError(messageFromError(actionError));
+      throw actionError;
+    }
+  }
+
+  async function signUpAccount(email, password) {
+    try {
+      const session = await accountSync.signUpWithEmail(email, password);
+      setAccountSession(session);
+      return session;
+    } catch (actionError) {
+      setError(messageFromError(actionError));
+      throw actionError;
+    }
+  }
+
+  async function signOutAccount() {
+    try {
+      await accountSync.signOut();
+      setAccountSession(null);
+      setCloudCharacters([]);
+    } catch (actionError) {
+      setError(messageFromError(actionError));
+      throw actionError;
+    }
+  }
+
+  async function deleteAccount() {
+    try {
+      await accountSync.deleteAccount();
+      setAccountSession(null);
+      setCloudCharacters([]);
+    } catch (actionError) {
+      setError(messageFromError(actionError));
+      throw actionError;
+    }
+  }
+
+  async function uploadSelectedCharacterToCloud() {
+    try {
+      const next = await accountSync.uploadCharacterPack(selectedCharacter);
+      setCloudCharacters(next);
+      return next;
+    } catch (actionError) {
+      setError(messageFromError(actionError));
+      throw actionError;
+    }
+  }
+
+  async function importCloudCharacter(localCharacterId) {
+    try {
+      const character = await accountSync.importCloudCharacter(localCharacterId);
+      await loadCharacters();
+      return character;
+    } catch (actionError) {
+      setError(messageFromError(actionError));
+      throw actionError;
+    }
+  }
+
   async function resetLifeState() {
     const next = await lifeStateRepository.resetLifeState();
     setLifeState(next);
@@ -381,6 +494,12 @@ function TaskMateProvider({ children }) {
   }
 
   const value = {
+    account: {
+      cloudCharacters,
+      configured: accountSync.isSupabaseConfigured,
+      session: accountSession,
+      user: accountSession?.user || null
+    },
     behavior,
     characters,
     clearFocusTask,
@@ -389,17 +508,20 @@ function TaskMateProvider({ children }) {
     createCustomCharacter,
     createTask,
     deleteAllLocalData,
+    deleteAccount,
     deleteCustomCharacter,
     deleteTask,
     dialogue,
     error,
     expireUndoItem,
     initialize,
+    importCloudCharacter,
     lifeState,
     loading,
     notificationTaskId,
     requestNotifications,
     resetLifeState,
+    refreshCloudCharacters,
     selectCharacter,
     selectedCharacter,
     setError,
@@ -409,6 +531,10 @@ function TaskMateProvider({ children }) {
     tasks,
     undoCompleteTask,
     undoItem,
+    signInAccount,
+    signOutAccount,
+    signUpAccount,
+    uploadSelectedCharacterToCloud,
     updateCustomCharacterDialogues,
     updateCustomCharacterImage,
     updateCustomCharacterProfile,

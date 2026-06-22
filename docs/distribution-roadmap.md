@@ -3,7 +3,7 @@
 ## 第1段階: Installer生成と手動配布
 
 - `npm run dist`でWindows向けNSIS Installerを生成する。
-- 生成された`TaskMate-Setup-x.x.x.exe`はリポジトリへコミットせず、GitHub Releasesで手動配布する。
+- 生成された`TaskMate-Installer-x.x.x.exe`はリポジトリへコミットせず、GitHub Releasesで手動配布する。
 - GitHub Actionsではまずartifact生成までを自動化し、公開Releaseの作成は手動確認後に行う。
 
 ## 第2段階: 利用者向け説明の整備

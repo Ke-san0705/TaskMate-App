@@ -16,6 +16,8 @@ const IPC = Object.freeze({
   GET_CHARACTERS: 'taskmate:get-characters',
   GET_CHARACTER_DATA: 'taskmate:get-character-data',
   SELECT_CHARACTER: 'taskmate:select-character',
+  EXPORT_CHARACTER_PACK: 'taskmate:export-character-pack',
+  SAVE_CLOUD_CHARACTER_PACK: 'taskmate:save-cloud-character-pack',
   SET_CLICK_THROUGH: 'taskmate:set-click-through',
   BEGIN_WINDOW_DRAG: 'taskmate:begin-window-drag',
   MOVE_WINDOW_DRAG: 'taskmate:move-window-drag',
@@ -79,6 +81,10 @@ contextBridge.exposeInMainWorld('taskMate', {
   getCharacters: () => ipcRenderer.invoke(IPC.GET_CHARACTERS),
   getCharacterData: (characterName) => ipcRenderer.invoke(IPC.GET_CHARACTER_DATA, characterName),
   selectCharacter: (characterName) => ipcRenderer.invoke(IPC.SELECT_CHARACTER, characterName),
+  exportCharacterPack: (characterName) =>
+    ipcRenderer.invoke(IPC.EXPORT_CHARACTER_PACK, characterName),
+  saveCloudCharacterPack: (characterPack) =>
+    ipcRenderer.invoke(IPC.SAVE_CLOUD_CHARACTER_PACK, characterPack),
   setClickThrough: (enabled) => ipcRenderer.send(IPC.SET_CLICK_THROUGH, enabled),
   beginWindowDrag: (point) => ipcRenderer.send(IPC.BEGIN_WINDOW_DRAG, point),
   moveWindowDrag: (point) => ipcRenderer.send(IPC.MOVE_WINDOW_DRAG, point),

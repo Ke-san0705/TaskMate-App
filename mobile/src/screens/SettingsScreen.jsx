@@ -18,15 +18,26 @@ function Row({ title, body, children }) {
 
 function SettingsScreen() {
   const {
+    account,
     deleteAllLocalData,
+    deleteAccount,
     error,
+    importCloudCharacter,
     requestNotifications,
     resetLifeState,
+    refreshCloudCharacters,
+    selectedCharacter,
     setError,
     settings,
+    signInAccount,
+    signOutAccount,
+    signUpAccount,
+    uploadSelectedCharacterToCloud,
     updateSettings
   } = useTaskMate();
   const [message, setMessage] = React.useState('');
+  const [accountEmail, setAccountEmail] = React.useState('');
+  const [accountPassword, setAccountPassword] = React.useState('');
 
   if (!settings) {
     return null;
@@ -53,6 +64,160 @@ function SettingsScreen() {
         {message ? <Text style={styles.message}>{message}</Text> : null}
         <Text style={styles.eyebrow}>SETTINGS</Text>
         <Text style={styles.title}>設定</Text>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>アカウント</Text>
+          {!account.configured ? (
+            <Text style={styles.privacy}>
+              mobile/.envにEXPO_PUBLIC_SUPABASE_URLとEXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEYを
+              設定してアプリを再起動すると、ログインとキャラクター同期が有効になります。
+            </Text>
+          ) : account.session ? (
+            <>
+              <Text style={styles.privacy}>
+                ログイン中: {account.user?.email || account.user?.id}
+              </Text>
+              <View style={styles.buttonRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="クラウドキャラクター一覧を更新する"
+                  style={styles.secondaryFull}
+                  onPress={async () => {
+                    await refreshCloudCharacters();
+                    setMessage('クラウド一覧を更新しました。');
+                  }}
+                >
+                  <Text style={styles.secondaryText}>一覧を更新</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="ログアウトする"
+                  style={styles.warningFull}
+                  onPress={async () => {
+                    await signOutAccount();
+                    setMessage('ログアウトしました。');
+                  }}
+                >
+                  <Text style={styles.warningText}>ログアウト</Text>
+                </Pressable>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="アカウントを削除する"
+                style={styles.dangerFull}
+                onPress={() =>
+                  Alert.alert(
+                    'アカウントを削除しますか？',
+                    'クラウド上のアカウントとキャラクターデータを削除します。元に戻せません。',
+                    [
+                      { text: 'キャンセル', style: 'cancel' },
+                      {
+                        text: '削除',
+                        style: 'destructive',
+                        onPress: async () => {
+                          await deleteAccount();
+                          setMessage('アカウント削除を実行しました。');
+                        }
+                      }
+                    ]
+                  )
+                }
+              >
+                <Text style={styles.dangerText}>アカウント削除</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="選択中のカスタムキャラクターをクラウドへ保存する"
+                disabled={selectedCharacter?.builtIn}
+                style={[
+                  styles.primaryFull,
+                  selectedCharacter?.builtIn && styles.disabledButton
+                ]}
+                onPress={async () => {
+                  await uploadSelectedCharacterToCloud();
+                  setMessage('選択中のカスタムキャラクターをクラウドへ保存しました。');
+                }}
+              >
+                <Text style={styles.primaryText}>
+                  {selectedCharacter?.builtIn
+                    ? 'カスタムキャラを選択してください'
+                    : '選択中のキャラをクラウド保存'}
+                </Text>
+              </Pressable>
+              {account.cloudCharacters.map((character) => (
+                <View key={character.local_character_id} style={styles.cloudItem}>
+                  <View style={styles.cloudItemText}>
+                    <Text style={styles.rowTitle}>{character.name}</Text>
+                    <Text style={styles.cloudMeta}>
+                      {character.source_device || 'unknown'} /{' '}
+                      {character.updated_at
+                        ? new Date(character.updated_at).toLocaleString()
+                        : '未同期'}
+                    </Text>
+                  </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${character.name}を取り込む`}
+                    style={styles.secondaryFull}
+                    onPress={async () => {
+                      await importCloudCharacter(character.local_character_id);
+                      setMessage('クラウドのキャラクターを端末へ保存しました。');
+                    }}
+                  >
+                    <Text style={styles.secondaryText}>取り込む</Text>
+                  </Pressable>
+                </View>
+              ))}
+              {account.cloudCharacters.length === 0 ? (
+                <Text style={styles.privacy}>クラウドに保存されたキャラクターはまだありません。</Text>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <Text style={styles.label}>メールアドレス</Text>
+              <TextInput
+                accessibilityLabel="アカウントのメールアドレス"
+                value={accountEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                onChangeText={setAccountEmail}
+                style={styles.input}
+              />
+              <Text style={styles.label}>パスワード</Text>
+              <TextInput
+                accessibilityLabel="アカウントのパスワード"
+                value={accountPassword}
+                secureTextEntry
+                onChangeText={setAccountPassword}
+                style={styles.input}
+              />
+              <View style={styles.buttonRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="ログインする"
+                  style={styles.primaryFull}
+                  onPress={async () => {
+                    await signInAccount(accountEmail, accountPassword);
+                    setMessage('ログインしました。');
+                  }}
+                >
+                  <Text style={styles.primaryText}>ログイン</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="新規登録する"
+                  style={styles.secondaryFull}
+                  onPress={async () => {
+                    await signUpAccount(accountEmail, accountPassword);
+                    setMessage('登録しました。メール確認が必要な場合は受信箱を確認してください。');
+                  }}
+                >
+                  <Text style={styles.secondaryText}>新規登録</Text>
+                </Pressable>
+              </View>
+            </>
+          )}
+        </View>
 
         <View style={styles.card}>
           <Row
@@ -255,6 +420,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#E7F2DF',
     fontWeight: '800'
   },
+  sectionTitle: {
+    color: '#1F2A22',
+    fontSize: 18,
+    fontWeight: '900'
+  },
   card: {
     padding: 14,
     borderRadius: 8,
@@ -328,6 +498,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF'
   },
   secondaryFull: {
+    flex: 1,
     alignItems: 'center',
     padding: 12,
     borderRadius: 8,
@@ -338,7 +509,44 @@ const styles = StyleSheet.create({
     color: '#315C3A',
     fontWeight: '900'
   },
+  primaryFull: {
+    flex: 1,
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#315C3A'
+  },
+  primaryText: {
+    color: '#FFFFFF',
+    fontWeight: '900'
+  },
+  disabledButton: {
+    opacity: 0.5
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 10
+  },
+  cloudItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D5DED3',
+    backgroundColor: '#F8FBF5'
+  },
+  cloudItemText: {
+    flex: 1
+  },
+  cloudMeta: {
+    marginTop: 2,
+    color: '#5A675E',
+    fontSize: 12
+  },
   warningFull: {
+    flex: 1,
     alignItems: 'center',
     padding: 12,
     borderRadius: 8,
