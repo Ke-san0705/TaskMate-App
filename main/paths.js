@@ -2,6 +2,8 @@ const path = require('path');
 
 function createPathResolver(app) {
   const resourceRoot = app.isPackaged ? process.resourcesPath : app.getAppPath();
+  // Packaged Windows apps may be installed under Program Files, where normal users
+  // cannot safely write. Keep user-edited JSON under Electron's userData directory.
   const writableDataRoot = app.isPackaged
     ? path.join(app.getPath('userData'), 'data')
     : path.join(resourceRoot, 'data');

@@ -360,6 +360,8 @@ function createFileManager(app) {
       await fsPromises.access(destination);
       return;
     } catch {
+      // First launch after install: create the writable userData copy without
+      // overwriting existing user data from an older TaskMate installation.
       // 初回起動時だけ、同梱データまたは既定値から生成します。
     }
 
@@ -382,6 +384,9 @@ function createFileManager(app) {
   }
 
   async function ensureInitialFiles() {
+    // Installer builds keep bundled defaults read-only in resources. Runtime JSON
+    // lives in paths.dataRoot so updates, uninstall/reinstall, and non-admin users
+    // do not depend on write access to the application install directory.
     await fsPromises.mkdir(paths.dataRoot, { recursive: true });
     await copyBundledFileIfMissing('tasks.json', []);
     await copyBundledFileIfMissing('settings.json', clone(DEFAULT_SETTINGS));
