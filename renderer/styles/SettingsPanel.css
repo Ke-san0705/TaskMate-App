@@ -102,7 +102,7 @@ body:has(.settings-loading) {
 
 .settings-toolbar {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 10px;
   margin-top: 18px;
   padding: 7px;
@@ -619,6 +619,86 @@ body:has(.settings-loading) {
   font-size: 11px;
 }
 
+.google-calendar-panel {
+  display: grid;
+  gap: 0;
+}
+
+.calendar-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.calendar-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.calendar-choice {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #ded5c8;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.calendar-choice input {
+  width: 18px;
+  height: 18px;
+  accent-color: #a45b25;
+}
+
+.calendar-choice__swatch {
+  width: 14px;
+  height: 14px;
+  border: 1px solid rgba(47, 43, 39, 0.2);
+  border-radius: 50%;
+}
+
+.calendar-choice__text {
+  min-width: 0;
+}
+
+.calendar-choice__text strong,
+.calendar-choice__text small {
+  display: block;
+}
+
+.calendar-choice__text strong {
+  overflow-wrap: anywhere;
+  color: #2f2b27;
+  font-size: 13px;
+}
+
+.calendar-choice__text small {
+  margin-top: 2px;
+  color: #746d64;
+  font-size: 11px;
+}
+
+.calendar-errors {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 10px;
+  border-radius: 10px;
+  background: #fff4d4;
+  color: #7a5313;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.calendar-errors p {
+  margin: 0;
+}
+
 @media (max-width: 520px) {
   .settings-panel {
     padding: 18px;
@@ -640,6 +720,7 @@ body:has(.settings-loading) {
   .account-form,
   .task-settings-item,
   .notification-rule,
+  .calendar-list,
   .project-settings-grid,
   .task-genre-group > header,
   .settings-toolbar {

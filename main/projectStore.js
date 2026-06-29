@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const PROJECT_STATUSES = new Set(['not_started', 'in_progress', 'completed', 'paused']);
 const TASK_STATUSES = new Set(['not_started', 'in_progress', 'completed']);
 const PROJECT_PRIORITIES = new Set(['low', 'medium', 'high', 'urgent']);
@@ -57,6 +58,16 @@ function isValidLocalDate(value) {
 
 function normalizeDate(value, { nullable = false, fallback = null } = {}) {
   if (typeof value === 'string' && isValidLocalDate(value.trim())) {
+    return value.trim();
+  }
+  if (nullable && (value === null || value === undefined || value === '')) {
+    return null;
+  }
+  return fallback;
+}
+
+function normalizeTime(value, { nullable = true, fallback = null } = {}) {
+  if (typeof value === 'string' && TIME_PATTERN.test(value.trim())) {
     return value.trim();
   }
   if (nullable && (value === null || value === undefined || value === '')) {
@@ -675,7 +686,10 @@ function normalizeProjectInput(input, current = null, options = {}) {
     deadline,
     status,
     priority,
-    progress: clampNumber(source.progress ?? previous.progress, 0, 100, 0),
+    progress:
+      status === 'completed'
+        ? 100
+        : Math.min(99, clampNumber(source.progress ?? previous.progress, 0, 100, 0)),
     estimatedTotalMinutes: clampNumber(
       source.estimatedTotalMinutes ?? previous.estimatedTotalMinutes,
       0,
@@ -752,6 +766,7 @@ function normalizeProjectTaskInput(input, current = null, options = {}) {
   const scheduledDate = normalizeDate(source.scheduledDate ?? previous.scheduledDate, {
     nullable: true
   });
+  const time = normalizeTime(source.time ?? previous.time, { nullable: true });
   const status = TASK_STATUSES.has(source.status)
     ? source.status
     : TASK_STATUSES.has(previous.status)
@@ -779,6 +794,7 @@ function normalizeProjectTaskInput(input, current = null, options = {}) {
     description: trimText(source.description ?? previous.description, 3000),
     startDate,
     deadline,
+    time,
     scheduledDate,
     estimatedMinutes: clampNumber(
       source.estimatedMinutes ?? previous.estimatedMinutes,
@@ -821,6 +837,9 @@ function recalculateProjectProgress(state) {
 }
 
 function calculateProjectProgress(project, tasks) {
+  if (project.status === 'completed') {
+    return 100;
+  }
   if (!Array.isArray(tasks) || tasks.length === 0) {
     return project.progress || 0;
   }
@@ -860,7 +879,7 @@ function projectTaskToNormalTaskInput(projectTask, state, date, current = null) 
     title: projectTask.title,
     description: projectTask.description,
     date: date || projectTask.scheduledDate || localDateKey(),
-    time: current?.time || null,
+    time: projectTask.time || current?.time || null,
     genre: category?.name || project?.name || 'プロジェクト',
     priority: priorityMap[project?.priority] || 'normal',
     completed: projectTask.status === 'completed',

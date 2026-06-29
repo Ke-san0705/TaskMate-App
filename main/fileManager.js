@@ -50,6 +50,10 @@ function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+function nowIso(now = new Date()) {
+  return now instanceof Date ? now.toISOString() : new Date(now).toISOString();
+}
+
 function safeCharacterFolderName(value, fallback = 'cloud-character') {
   const source = typeof value === 'string' ? value.trim() : '';
   const sanitized = source
@@ -95,6 +99,28 @@ function validateTask(task, index) {
     throw new Error(`${task.title}のcompletedが真偽値ではありません。`);
   }
 
+  const timestamp = nowIso();
+  const createdAt =
+    typeof task.createdAt === 'string' && task.createdAt
+      ? task.createdAt
+      : typeof task.created_at === 'string' && task.created_at
+        ? task.created_at
+        : timestamp;
+  const updatedAt =
+    typeof task.updatedAt === 'string' && task.updatedAt
+      ? task.updatedAt
+      : typeof task.updated_at === 'string' && task.updated_at
+        ? task.updated_at
+        : createdAt;
+  const completedAt =
+    task.completed && typeof task.completedAt === 'string'
+      ? task.completedAt
+      : task.completed && typeof task.completed_at === 'string'
+        ? task.completed_at
+        : task.completed
+          ? updatedAt
+          : null;
+
   const normalized = {
     id: task.id.trim(),
     title: task.title.trim(),
@@ -103,7 +129,10 @@ function validateTask(task, index) {
     time: task.time,
     genre: typeof task.genre === 'string' ? task.genre : '',
     priority: task.priority,
-    completed: task.completed
+    completed: task.completed,
+    createdAt,
+    updatedAt,
+    completedAt
   };
   if (task.source === 'project' && typeof task.projectTaskId === 'string') {
     normalized.source = 'project';
@@ -149,6 +178,10 @@ function normalizeTaskInput(taskInput) {
       ? taskInput.time.trim()
       : null;
 
+  const previous = isPlainObject(taskInput.current) ? taskInput.current : {};
+  const timestamp = nowIso();
+  const completed = typeof taskInput.completed === 'boolean' ? taskInput.completed : false;
+
   return validateTask(
     {
       id:
@@ -163,8 +196,26 @@ function normalizeTaskInput(taskInput) {
       genre: typeof taskInput.genre === 'string' ? taskInput.genre.trim() : '',
       priority:
         typeof taskInput.priority === 'string' ? taskInput.priority.trim() : 'normal',
-      completed:
-        typeof taskInput.completed === 'boolean' ? taskInput.completed : false,
+      completed,
+      createdAt:
+        typeof taskInput.createdAt === 'string' && taskInput.createdAt
+          ? taskInput.createdAt
+          : typeof previous.createdAt === 'string' && previous.createdAt
+            ? previous.createdAt
+            : timestamp,
+      updatedAt:
+        taskInput.preserveUpdatedAt === true &&
+        typeof taskInput.updatedAt === 'string' &&
+        taskInput.updatedAt
+          ? taskInput.updatedAt
+          : timestamp,
+      completedAt: completed
+        ? typeof taskInput.completedAt === 'string' && taskInput.completedAt
+          ? taskInput.completedAt
+          : previous.completed === true && typeof previous.completedAt === 'string'
+            ? previous.completedAt
+            : timestamp
+        : null,
       source: taskInput.source,
       projectTaskId: taskInput.projectTaskId,
       projectId: taskInput.projectId,

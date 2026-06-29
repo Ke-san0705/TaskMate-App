@@ -3,6 +3,7 @@ import AmbientStateLayer from './components/AmbientStateLayer';
 import Character from './components/Character';
 import CharacterStatusBadge from './components/CharacterStatusBadge';
 import DialogueBubble from './components/DialogueBubble';
+import GoogleCalendarToday from './components/GoogleCalendarToday';
 import ProjectManagementMode from './components/ProjectManagementMode';
 import SettingsPanel from './components/SettingsPanel';
 import useCharacter from './hooks/useCharacter';
@@ -77,6 +78,7 @@ function MainView() {
   const [notification, setNotification] = useState(null);
   const [clickActive, setClickActive] = useState(false);
   const [clickDialogueActive, setClickDialogueActive] = useState(false);
+  const [projectCompactCollapsed, setProjectCompactCollapsed] = useState(false);
   const [dialogue, setDialogue] = useState('今日も一緒に進めよう！');
   const stageRef = useRef(null);
   const clickTimerRef = useRef(null);
@@ -251,6 +253,12 @@ function MainView() {
     }
   }, [notification, showCharacter]);
 
+  useEffect(() => {
+    if (!showProjectMode) {
+      setProjectCompactCollapsed(false);
+    }
+  }, [showProjectMode]);
+
   return (
     <main
       className={`mascot-root${showCharacter ? '' : ' mascot-root--app-mode'}${
@@ -282,7 +290,13 @@ function MainView() {
           />
         )}
 
-        <div className="bubble-stack">
+        <div
+          className={`bubble-stack${
+            showProjectMode && projectCompactCollapsed
+              ? ' bubble-stack--project-collapsed'
+              : ''
+          }`}
+        >
           {showCharacter && <CharacterStatusBadge mood={state} />}
 
           {showDialogue && (
@@ -305,10 +319,19 @@ function MainView() {
             />
           )}
 
+          {!notification && (
+            <GoogleCalendarToday
+              onTaskCreated={(task) =>
+                chooseAndSetDialogue('showOneChoice', { title: task?.title || '' })
+              }
+            />
+          )}
+
           {showProjectMode && (
             <ProjectManagementMode
               settings={settings}
               onDialogue={chooseAndSetDialogue}
+              onCompactCollapsedChange={setProjectCompactCollapsed}
               compact
             />
           )}

@@ -66,7 +66,13 @@ function normalizeSettings(value) {
     selectedCharacterId:
       typeof source.selectedCharacterId === 'string' && source.selectedCharacterId
         ? source.selectedCharacterId
-        : DEFAULT_SETTINGS.selectedCharacterId
+        : DEFAULT_SETTINGS.selectedCharacterId,
+    projectSettings: {
+      ...DEFAULT_SETTINGS.projectSettings,
+      ...(source.projectSettings && typeof source.projectSettings === 'object'
+        ? source.projectSettings
+        : {})
+    }
   };
 }
 

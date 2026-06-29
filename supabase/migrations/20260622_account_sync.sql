@@ -21,6 +21,27 @@ create table if not exists public.task_items (
   primary key (user_id, local_task_id)
 );
 
+create table if not exists public.task_sync_items (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  item_type text not null,
+  local_id text not null,
+  payload jsonb not null default '{}'::jsonb,
+  source_device text not null default 'unknown',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz,
+  primary key (user_id, item_type, local_id),
+  constraint task_sync_items_item_type_check check (
+    item_type in (
+      'task',
+      'project_category',
+      'project',
+      'project_milestone',
+      'project_task'
+    )
+  )
+);
+
 create table if not exists public.character_packs (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -65,6 +86,11 @@ create trigger task_items_set_updated_at
 before update on public.task_items
 for each row execute function public.set_updated_at();
 
+drop trigger if exists task_sync_items_set_updated_at on public.task_sync_items;
+create trigger task_sync_items_set_updated_at
+before update on public.task_sync_items
+for each row execute function public.set_updated_at();
+
 drop trigger if exists character_packs_set_updated_at on public.character_packs;
 create trigger character_packs_set_updated_at
 before update on public.character_packs
@@ -72,6 +98,7 @@ for each row execute function public.set_updated_at();
 
 alter table public.profiles enable row level security;
 alter table public.task_items enable row level security;
+alter table public.task_sync_items enable row level security;
 alter table public.character_packs enable row level security;
 alter table public.account_deletion_requests enable row level security;
 
@@ -116,6 +143,31 @@ with check (user_id = (select auth.uid()));
 drop policy if exists "task_items_delete_own" on public.task_items;
 create policy "task_items_delete_own"
 on public.task_items for delete
+to authenticated
+using (user_id = (select auth.uid()));
+
+drop policy if exists "task_sync_items_select_own" on public.task_sync_items;
+create policy "task_sync_items_select_own"
+on public.task_sync_items for select
+to authenticated
+using (user_id = (select auth.uid()));
+
+drop policy if exists "task_sync_items_insert_own" on public.task_sync_items;
+create policy "task_sync_items_insert_own"
+on public.task_sync_items for insert
+to authenticated
+with check (user_id = (select auth.uid()));
+
+drop policy if exists "task_sync_items_update_own" on public.task_sync_items;
+create policy "task_sync_items_update_own"
+on public.task_sync_items for update
+to authenticated
+using (user_id = (select auth.uid()))
+with check (user_id = (select auth.uid()));
+
+drop policy if exists "task_sync_items_delete_own" on public.task_sync_items;
+create policy "task_sync_items_delete_own"
+on public.task_sync_items for delete
 to authenticated
 using (user_id = (select auth.uid()));
 

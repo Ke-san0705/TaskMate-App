@@ -100,6 +100,7 @@ function CharacterEditScreen({ navigation, route }) {
           value={name}
           onChangeText={setName}
           placeholder="名前"
+          placeholderTextColor="#8A9488"
           style={styles.input}
         />
 
@@ -109,6 +110,7 @@ function CharacterEditScreen({ navigation, route }) {
           value={description}
           onChangeText={setDescription}
           placeholder="どんなキャラクターか"
+          placeholderTextColor="#8A9488"
           style={[styles.input, styles.textarea]}
           multiline
         />
@@ -141,6 +143,7 @@ function CharacterEditScreen({ navigation, route }) {
                 setDialogues((current) => ({ ...current, [key]: next }))
               }
               placeholder="短い応援の言葉"
+              placeholderTextColor="#8A9488"
               style={styles.input}
             />
           </View>

@@ -18,6 +18,7 @@ function createPathResolver(app) {
     tasksFile: path.join(writableDataRoot, 'tasks.json'),
     settingsFile: path.join(writableDataRoot, 'settings.json'),
     notificationStateFile: path.join(writableDataRoot, 'notification-state.json'),
+    googleCalendarFile: path.join(writableDataRoot, 'google-calendar.json'),
     lifeStateFile: path.join(writableDataRoot, 'life-state.json'),
     projectCategoriesFile: path.join(writableDataRoot, 'categories.json'),
     projectsFile: path.join(writableDataRoot, 'projects.json'),

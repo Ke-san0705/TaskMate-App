@@ -1,8 +1,19 @@
-import { isSupabaseConfigured, supabase } from './supabaseClient';
+import {
+  isSupabaseConfigured,
+  supabase,
+  supabaseConfigSource
+} from './supabaseClient';
 
-export { isSupabaseConfigured };
+export { isSupabaseConfigured, supabaseConfigSource };
 
 const CHARACTER_BUCKET = 'taskmate-character-assets';
+const GOOGLE_CALENDAR_SCOPES = [
+  'openid',
+  'email',
+  'profile',
+  'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+  'https://www.googleapis.com/auth/calendar.events.readonly'
+];
 const CHARACTER_IMAGE_STATES = [
   'wait',
   'click',
@@ -85,6 +96,91 @@ export function onAccountStateChange(callback) {
     data: { subscription }
   } = supabase.auth.onAuthStateChange((_event, session) => callback(session));
   return () => subscription.unsubscribe();
+}
+
+export function isGoogleAccountSession(session) {
+  const provider = session?.user?.app_metadata?.provider;
+  const providers = session?.user?.app_metadata?.providers;
+  return provider === 'google' || (Array.isArray(providers) && providers.includes('google'));
+}
+
+function waitForSupabaseOAuthCallback(callbackId) {
+  return new Promise((resolve, reject) => {
+    const unsubscribe = window.taskMate.onSupabaseOAuthCallback((payload) => {
+      if (payload?.callbackId !== callbackId) {
+        return;
+      }
+      unsubscribe();
+      if (payload.error) {
+        reject(new Error(payload.errorDescription || payload.error));
+        return;
+      }
+      if (!payload.code) {
+        reject(new Error('Supabase OAuth認証コードを受け取れませんでした。'));
+        return;
+      }
+      resolve(payload.code);
+    });
+  });
+}
+
+export async function saveGoogleCalendarProviderAuthFromSession(session) {
+  if (!session?.provider_token) {
+    throw new Error('Googleカレンダー用のprovider tokenを受け取れませんでした。');
+  }
+  return window.taskMate.saveGoogleCalendarProviderAuth({
+    accessToken: session.provider_token,
+    refreshToken: session.provider_refresh_token || '',
+    scope: GOOGLE_CALENDAR_SCOPES.join(' '),
+    // Supabase does not expose provider token expiry consistently, so treat it
+    // as a short-lived Google access token unless a refresh token is available.
+    expiresAt: Date.now() + 55 * 60 * 1000,
+    accountEmail: session.user?.email || ''
+  });
+}
+
+export async function signInWithGoogleCalendar() {
+  assertConfigured();
+  let callback = null;
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: 'http://127.0.0.1:53682/oauth-callback',
+      skipBrowserRedirect: true,
+      scopes: GOOGLE_CALENDAR_SCOPES.join(' '),
+      queryParams: {
+        access_type: 'offline',
+        prompt: 'consent',
+        include_granted_scopes: 'true'
+      }
+    }
+  });
+  if (error) {
+    throw error;
+  }
+  if (!data?.url) {
+    throw new Error('GoogleログインURLを作成できませんでした。');
+  }
+  try {
+    await window.taskMate.validateSupabaseOAuthUrl(data.url);
+    callback = await window.taskMate.startSupabaseOAuthCallback();
+    const codePromise = waitForSupabaseOAuthCallback(callback.callbackId);
+    await window.taskMate.openExternalUrl(data.url);
+    const code = await codePromise;
+    const { data: exchangeData, error: exchangeError } =
+      await supabase.auth.exchangeCodeForSession(code);
+    if (exchangeError) {
+      throw exchangeError;
+    }
+    const session = exchangeData.session || (await getAccountSession());
+    await saveGoogleCalendarProviderAuthFromSession(session);
+    return session;
+  } catch (signInError) {
+    if (callback?.callbackId) {
+      await window.taskMate.cancelSupabaseOAuthCallback(callback.callbackId).catch(() => null);
+    }
+    throw signInError;
+  }
 }
 
 export async function signInWithEmail(email, password) {

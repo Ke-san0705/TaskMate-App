@@ -2,7 +2,9 @@ const React = require('react');
 const { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } = require('react-native');
 const { SafeAreaView } = require('react-native-safe-area-context');
 const ErrorBanner = require('../components/ErrorBanner');
+const TimeWheelInput = require('../components/TimeWheelInput');
 const { useTaskMate } = require('../context/TaskMateContext');
+const { colors, radius, shadows, spacing, typography } = require('../theme/taskMateTheme');
 
 function Row({ title, body, children }) {
   return (
@@ -19,9 +21,13 @@ function Row({ title, body, children }) {
 function SettingsScreen() {
   const {
     account,
+    connectGoogleCalendar,
+    createTaskFromGoogleEvent,
     deleteAllLocalData,
     deleteAccount,
+    disconnectGoogleCalendar,
     error,
+    googleCalendar,
     importCloudCharacter,
     requestNotifications,
     resetLifeState,
@@ -32,7 +38,10 @@ function SettingsScreen() {
     signInAccount,
     signOutAccount,
     signUpAccount,
+    syncGoogleCalendar,
+    syncTaskData,
     uploadSelectedCharacterToCloud,
+    updateGoogleCalendarSettings,
     updateSettings
   } = useTaskMate();
   const [message, setMessage] = React.useState('');
@@ -55,6 +64,14 @@ function SettingsScreen() {
         ...partial
       }
     });
+  }
+
+  async function toggleGoogleCalendar(calendarId) {
+    const selected = googleCalendar?.settings?.selectedCalendarIds || [];
+    const nextSelected = selected.includes(calendarId)
+      ? selected.filter((id) => id !== calendarId)
+      : [...selected, calendarId];
+    await updateGoogleCalendarSettings({ selectedCalendarIds: nextSelected });
   }
 
   return (
@@ -103,8 +120,21 @@ function SettingsScreen() {
               </View>
               <Pressable
                 accessibilityRole="button"
+                accessibilityLabel="タスクと長期プロジェクトを同期する"
+                style={styles.primaryFull}
+                onPress={async () => {
+                  const result = await syncTaskData();
+                  setMessage(
+                    `タスク同期完了: 送信 ${result.uploaded} / 取込 ${result.downloaded} / 削除 ${result.deleted}`
+                  );
+                }}
+              >
+                <Text style={styles.primaryText}>タスク/長期プロジェクトを同期</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
                 accessibilityLabel="アカウントを削除する"
-                style={styles.dangerFull}
+                style={[styles.dangerFull, styles.separatedDanger]}
                 onPress={() =>
                   Alert.alert(
                     'アカウントを削除しますか？',
@@ -215,6 +245,159 @@ function SettingsScreen() {
                   <Text style={styles.secondaryText}>新規登録</Text>
                 </Pressable>
               </View>
+            </>
+          )}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Googleカレンダー</Text>
+          {!account.configured ? (
+            <Text style={styles.privacy}>
+              Supabase設定を有効にすると、Googleアカウントでログインしてカレンダーを同期できます。
+            </Text>
+          ) : googleCalendar?.connected ? (
+            <>
+              <Text style={styles.privacy}>
+                接続済み: {googleCalendar.connectedAccount || account.user?.email || 'Googleアカウント'}
+              </Text>
+              <Text style={styles.privacy}>
+                最終同期:{' '}
+                {googleCalendar.sync?.lastSyncedAt
+                  ? new Date(googleCalendar.sync.lastSyncedAt).toLocaleString()
+                  : '未同期'}
+              </Text>
+              {googleCalendar.sync?.errorMessage ? (
+                <Text style={styles.calendarError}>{googleCalendar.sync.errorMessage}</Text>
+              ) : null}
+              <View style={styles.buttonRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Googleカレンダーを同期する"
+                  style={styles.primaryFull}
+                  onPress={async () => {
+                    await syncGoogleCalendar();
+                    setMessage('Googleカレンダーを同期しました。');
+                  }}
+                >
+                  <Text style={styles.primaryText}>同期</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Googleカレンダー連携を解除する"
+                  style={styles.warningFull}
+                  onPress={async () => {
+                    await disconnectGoogleCalendar();
+                    setMessage('Googleカレンダー連携を解除しました。');
+                  }}
+                >
+                  <Text style={styles.warningText}>解除</Text>
+                </Pressable>
+              </View>
+              <Row
+                title="ホームに今日の予定を表示"
+                body="同期したGoogleカレンダーの今日の予定をホームに控えめに表示します。"
+              >
+                <Switch
+                  accessibilityLabel="Googleカレンダーの今日の予定をホームに表示する"
+                  value={googleCalendar.settings?.showTodayOnHome !== false}
+                  onValueChange={(value) =>
+                    updateGoogleCalendarSettings({ showTodayOnHome: value })
+                  }
+                />
+              </Row>
+              <Row
+                title="非公開予定のタイトルを隠す"
+                body="非公開予定はTaskMate内ではGoogleカレンダーの予定として表示します。"
+              >
+                <Switch
+                  accessibilityLabel="Googleカレンダーの非公開予定タイトルを隠す"
+                  value={googleCalendar.settings?.hidePrivateDetails !== false}
+                  onValueChange={(value) =>
+                    updateGoogleCalendarSettings({ hidePrivateDetails: value })
+                  }
+                />
+              </Row>
+              <View style={styles.calendarBlock}>
+                <Text style={styles.label}>同期するカレンダー</Text>
+                {googleCalendar.calendars.length > 0 ? (
+                  googleCalendar.calendars.map((calendar) => (
+                    <Pressable
+                      key={calendar.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${calendar.summary}を同期対象にする`}
+                      style={[
+                        styles.calendarChoice,
+                        calendar.selected && styles.calendarChoiceSelected
+                      ]}
+                      onPress={() => toggleGoogleCalendar(calendar.id)}
+                    >
+                      <View
+                        style={[
+                          styles.calendarDot,
+                          { backgroundColor: calendar.backgroundColor || colors.primary }
+                        ]}
+                      />
+                      <Text style={styles.calendarChoiceText}>{calendar.summary}</Text>
+                      <Text style={styles.calendarChoiceMeta}>
+                        {calendar.selected ? '同期中' : '未選択'}
+                      </Text>
+                    </Pressable>
+                  ))
+                ) : (
+                  <Text style={styles.privacy}>同期するとカレンダー一覧が表示されます。</Text>
+                )}
+              </View>
+              <View style={styles.calendarBlock}>
+                <Text style={styles.label}>今日のGoogle予定</Text>
+                {googleCalendar.events.length > 0 ? (
+                  googleCalendar.events.map((event) => (
+                    <View key={event.key} style={styles.calendarEvent}>
+                      <View style={styles.calendarEventText}>
+                        <Text style={styles.rowTitle}>{event.title}</Text>
+                        <Text style={styles.cloudMeta}>
+                          {event.startText || '終日'} / {event.calendarSummary}
+                        </Text>
+                      </View>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`${event.title}からTaskMateタスクを作成する`}
+                        disabled={Boolean(event.taskId)}
+                        style={[
+                          styles.secondaryFull,
+                          event.taskId && styles.disabledButton
+                        ]}
+                        onPress={async () => {
+                          await createTaskFromGoogleEvent(event.key);
+                          setMessage('Google予定からTaskMateタスクを作成しました。');
+                        }}
+                      >
+                        <Text style={styles.secondaryText}>
+                          {event.taskId ? '作成済み' : 'タスク化'}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.privacy}>今日の予定はまだ同期されていません。</Text>
+                )}
+              </View>
+            </>
+          ) : (
+            <>
+              <Text style={styles.privacy}>
+                Googleでログインして、登録済みカレンダーから今日の予定を同期します。
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Googleカレンダーに接続する"
+                style={styles.primaryFull}
+                onPress={async () => {
+                  await connectGoogleCalendar();
+                  setMessage('Googleカレンダーに接続して同期しました。');
+                }}
+              >
+                <Text style={styles.primaryText}>Googleで接続</Text>
+              </Pressable>
             </>
           )}
         </View>
@@ -332,19 +515,19 @@ function SettingsScreen() {
           <View style={styles.timeRow}>
             <View style={styles.timeInput}>
               <Text style={styles.label}>開始</Text>
-              <TextInput
+              <TimeWheelInput
                 accessibilityLabel="静かな時間の開始"
                 value={settings.quietHours?.start || '22:00'}
-                onChangeText={(value) => updateQuietHours({ start: value })}
+                onChange={(value) => updateQuietHours({ start: value || '22:00' })}
                 style={styles.input}
               />
             </View>
             <View style={styles.timeInput}>
               <Text style={styles.label}>終了</Text>
-              <TextInput
+              <TimeWheelInput
                 accessibilityLabel="静かな時間の終了"
                 value={settings.quietHours?.end || '07:00'}
-                onChangeText={(value) => updateQuietHours({ end: value })}
+                onChange={(value) => updateQuietHours({ end: value || '07:00' })}
                 style={styles.input}
               />
             </View>
@@ -395,43 +578,39 @@ function SettingsScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#F6FAF3'
+    backgroundColor: colors.backgroundSoft
   },
   container: {
-    padding: 16,
-    gap: 14,
-    paddingBottom: 120
+    padding: spacing.screen,
+    gap: spacing.section,
+    paddingBottom: spacing.bottomTabPadding
   },
   eyebrow: {
-    color: '#5E6F60',
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 1
+    ...typography.eyebrow
   },
   title: {
-    color: '#1F2A22',
-    fontSize: 28,
-    fontWeight: '900'
+    ...typography.screenTitle
   },
   message: {
     padding: 10,
-    borderRadius: 8,
-    color: '#315C3A',
-    backgroundColor: '#E7F2DF',
+    borderRadius: radius.sm,
+    color: colors.primary,
+    backgroundColor: colors.primarySoft,
     fontWeight: '800'
   },
   sectionTitle: {
-    color: '#1F2A22',
+    color: colors.text,
     fontSize: 18,
     fontWeight: '900'
   },
   card: {
-    padding: 14,
-    borderRadius: 8,
+    padding: 16,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#D5DED3',
-    backgroundColor: '#FFFFFF',
-    gap: 12
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    gap: 14,
+    ...shadows.soft
   },
   row: {
     flexDirection: 'row',
@@ -443,27 +622,28 @@ const styles = StyleSheet.create({
     flex: 1
   },
   rowTitle: {
-    color: '#1F2A22',
+    color: colors.text,
     fontSize: 16,
     fontWeight: '900'
   },
   rowBody: {
     marginTop: 3,
-    color: '#5A675E',
+    color: colors.textMuted,
     lineHeight: 19
   },
   label: {
-    color: '#334337',
+    color: colors.text,
     fontSize: 13,
     fontWeight: '800'
   },
   input: {
     minHeight: 44,
     borderWidth: 1,
-    borderColor: '#B9C8B7',
-    borderRadius: 8,
+    borderColor: colors.borderStrong,
+    borderRadius: radius.sm,
     paddingHorizontal: 12,
-    backgroundColor: '#FFFFFF',
+    color: colors.text,
+    backgroundColor: colors.card,
     fontSize: 15
   },
   timeRow: {
@@ -481,17 +661,17 @@ const styles = StyleSheet.create({
   segmentButton: {
     flex: 1,
     padding: 10,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: '#A8B8A4',
+    borderColor: colors.borderStrong,
     alignItems: 'center'
   },
   segmentActive: {
-    backgroundColor: '#315C3A',
-    borderColor: '#315C3A'
+    backgroundColor: colors.primary,
+    borderColor: colors.primary
   },
   segmentText: {
-    color: '#315C3A',
+    color: colors.primary,
     fontWeight: '800'
   },
   segmentTextActive: {
@@ -501,27 +681,29 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     padding: 12,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: '#A8B8A4'
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.card
   },
   secondaryText: {
-    color: '#315C3A',
+    color: colors.primary,
     fontWeight: '900'
   },
   primaryFull: {
     flex: 1,
     alignItems: 'center',
     padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#315C3A'
+    borderRadius: radius.sm,
+    backgroundColor: colors.primary
   },
   primaryText: {
     color: '#FFFFFF',
     fontWeight: '900'
   },
   disabledButton: {
-    opacity: 0.5
+    backgroundColor: colors.disabled,
+    opacity: 0.82
   },
   buttonRow: {
     flexDirection: 'row',
@@ -532,25 +714,80 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     padding: 10,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: '#D5DED3',
-    backgroundColor: '#F8FBF5'
+    borderColor: colors.border,
+    backgroundColor: colors.cardSoft
   },
   cloudItemText: {
     flex: 1
   },
   cloudMeta: {
     marginTop: 2,
-    color: '#5A675E',
+    color: colors.textMuted,
     fontSize: 12
+  },
+  calendarBlock: {
+    gap: 8
+  },
+  calendarChoice: {
+    minHeight: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 10,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.cardSoft
+  },
+  calendarChoiceSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft
+  },
+  calendarDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6
+  },
+  calendarChoiceText: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '800'
+  },
+  calendarChoiceMeta: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '800'
+  },
+  calendarEvent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 10,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.cardSoft
+  },
+  calendarEventText: {
+    flex: 1,
+    minWidth: 0
+  },
+  calendarError: {
+    padding: 10,
+    borderRadius: radius.sm,
+    color: '#8F1D12',
+    backgroundColor: '#F8D7D1',
+    fontWeight: '800'
   },
   warningFull: {
     flex: 1,
     alignItems: 'center',
     padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#F5E5B8'
+    borderRadius: radius.sm,
+    backgroundColor: colors.warningBg
   },
   warningText: {
     color: '#5E4514',
@@ -559,17 +796,21 @@ const styles = StyleSheet.create({
   dangerFull: {
     alignItems: 'center',
     padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#8E2F2F'
+    borderRadius: radius.sm,
+    backgroundColor: colors.danger
+  },
+  separatedDanger: {
+    marginTop: 8
   },
   dangerText: {
     color: '#FFFFFF',
     fontWeight: '900'
   },
   privacy: {
-    color: '#516052',
+    color: colors.textMuted,
     fontSize: 13,
-    lineHeight: 19
+    lineHeight: 19,
+    flexShrink: 1
   }
 });
 

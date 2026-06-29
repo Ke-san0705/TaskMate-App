@@ -2,9 +2,14 @@ const { AppState, Platform } = require('react-native');
 require('react-native-url-polyfill/auto');
 const AsyncStorage = require('@react-native-async-storage/async-storage').default;
 const { createClient, processLock } = require('@supabase/supabase-js');
+const { PUBLIC_RUNTIME_CONFIG } = require('../config/publicRuntimeConfig');
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const supabasePublishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY || '';
+const supabaseUrl =
+  process.env.EXPO_PUBLIC_SUPABASE_URL || PUBLIC_RUNTIME_CONFIG.supabaseUrl || '';
+const supabasePublishableKey =
+  process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  PUBLIC_RUNTIME_CONFIG.supabasePublishableKey ||
+  '';
 const isSupabaseConfigured = Boolean(supabaseUrl && supabasePublishableKey);
 
 const supabase = isSupabaseConfigured
@@ -13,6 +18,7 @@ const supabase = isSupabaseConfigured
         ...(Platform.OS !== 'web' ? { storage: AsyncStorage } : {}),
         autoRefreshToken: true,
         detectSessionInUrl: false,
+        flowType: 'pkce',
         lock: processLock,
         persistSession: true,
         storageKey: 'taskmate-mobile-auth'

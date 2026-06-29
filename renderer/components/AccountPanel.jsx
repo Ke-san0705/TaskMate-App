@@ -4,13 +4,16 @@ import {
   downloadCharacterPack,
   getAccountSession,
   isSupabaseConfigured,
+  isGoogleAccountSession,
   listCloudCharacterPacks,
   onAccountStateChange,
+  signInWithGoogleCalendar,
   signInWithEmail,
   signOut,
   signUpWithEmail,
   uploadCharacterPack
 } from '../services/characterCloudSync';
+import { syncTaskData } from '../services/taskCloudSync';
 
 function accountLabel(session) {
   return session?.user?.email || session?.user?.id || 'ログイン中';
@@ -91,8 +94,8 @@ export default function AccountPanel({ selectedCharacter }) {
           </div>
         </div>
         <p>
-          `.env`に`VITE_SUPABASE_URL`と`VITE_SUPABASE_PUBLISHABLE_KEY`を入れて、
-          dev serverを再起動するとログイン機能が有効になります。
+          公式ビルド用の公開Supabase設定が未登録です。開発中は`.env`、
+          配布ビルドでは`renderer/config/publicRuntimeConfig.js`にURLとpublishable keyを設定してください。
         </p>
       </section>
     );
@@ -117,6 +120,24 @@ export default function AccountPanel({ selectedCharacter }) {
 
         {session ? (
           <div className="account-actions">
+            {isGoogleAccountSession(session) && (
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={busy}
+                onClick={() =>
+                  runAction(
+                    async () => {
+                      const nextSession = await signInWithGoogleCalendar();
+                      setSession(nextSession);
+                    },
+                    'Googleアカウントのカレンダー権限を更新しました。'
+                  )
+                }
+              >
+                カレンダー権限を再許可
+              </button>
+            )}
             <button
               type="button"
               className="secondary-button"
@@ -124,6 +145,21 @@ export default function AccountPanel({ selectedCharacter }) {
               onClick={() => runAction(refreshCloudCharacters, 'クラウド一覧を更新しました。')}
             >
               クラウド一覧を更新
+            </button>
+            <button
+              type="button"
+              className="primary-button"
+              disabled={busy}
+              onClick={() =>
+                runAction(async () => {
+                  const result = await syncTaskData();
+                  setMessage(
+                    `タスク同期完了: 送信 ${result.uploaded} / 取込 ${result.downloaded} / 削除 ${result.deleted}`
+                  );
+                })
+              }
+            >
+              タスク/長期プロジェクトを同期
             </button>
             <button
               type="button"
@@ -185,6 +221,22 @@ export default function AccountPanel({ selectedCharacter }) {
               />
             </label>
             <div className="task-form__actions">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={busy}
+                onClick={() =>
+                  runAction(
+                    async () => {
+                      const nextSession = await signInWithGoogleCalendar();
+                      setSession(nextSession);
+                    },
+                    'Googleアカウントでログインしました。'
+                  )
+                }
+              >
+                Googleで登録/ログイン
+              </button>
               <button type="submit" className="primary-button" disabled={busy}>
                 ログイン
               </button>
