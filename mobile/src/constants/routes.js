@@ -3,6 +3,8 @@ const ROUTES = Object.freeze({
   Home: 'Home',
   Tasks: 'Tasks',
   TaskEdit: 'TaskEdit',
+  Projects: 'Projects',
+  ProjectDetail: 'ProjectDetail',
   Characters: 'Characters',
   CharacterEdit: 'CharacterEdit',
   Settings: 'Settings'

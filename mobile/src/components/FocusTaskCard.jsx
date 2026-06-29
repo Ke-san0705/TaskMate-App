@@ -1,6 +1,7 @@
 const React = require('react');
 const { Pressable, StyleSheet, Text, View } = require('react-native');
 const { formatTaskTime } = require('../utils/localDate');
+const { colors, radius, shadows, typography } = require('../theme/taskMateTheme');
 
 function FocusTaskCard({ task, onComplete, onClear, onDetails }) {
   if (!task) {
@@ -45,26 +46,25 @@ function FocusTaskCard({ task, onComplete, onClear, onDetails }) {
 
 const styles = StyleSheet.create({
   card: {
-    padding: 14,
-    borderRadius: 8,
+    padding: 16,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#7A8F7A',
-    backgroundColor: '#F3F8EF',
-    gap: 7
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+    gap: 8,
+    ...shadows.card
   },
   eyebrow: {
-    color: '#516052',
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 1
+    ...typography.eyebrow,
+    color: colors.primary
   },
   title: {
-    color: '#1F2A22',
+    color: colors.text,
     fontSize: 18,
     fontWeight: '900'
   },
   meta: {
-    color: '#516052',
+    color: colors.textMuted,
     fontSize: 13
   },
   actions: {
@@ -76,8 +76,8 @@ const styles = StyleSheet.create({
   primary: {
     paddingVertical: 10,
     paddingHorizontal: 14,
-    borderRadius: 8,
-    backgroundColor: '#315C3A'
+    borderRadius: radius.sm,
+    backgroundColor: colors.primary
   },
   primaryText: {
     color: '#FFFFFF',
@@ -86,13 +86,13 @@ const styles = StyleSheet.create({
   secondary: {
     paddingVertical: 10,
     paddingHorizontal: 14,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: '#9AAE98',
-    backgroundColor: '#FFFFFF'
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.card
   },
   secondaryText: {
-    color: '#315C3A',
+    color: colors.primary,
     fontWeight: '800'
   }
 });

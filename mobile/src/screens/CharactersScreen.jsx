@@ -1,10 +1,18 @@
 const React = require('react');
-const { Alert, Pressable, ScrollView, StyleSheet, Text, View } = require('react-native');
+const { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } = require('react-native');
 const { SafeAreaView } = require('react-native-safe-area-context');
 const CharacterView = require('../components/CharacterView');
 const ErrorBanner = require('../components/ErrorBanner');
 const { useTaskMate } = require('../context/TaskMateContext');
 const { ROUTES } = require('../constants/routes');
+const { colors, radius, shadows, spacing, typography } = require('../theme/taskMateTheme');
+
+function characterTags(character) {
+  if (character?.id === 'Chara2') {
+    return ['やさしい', '応援上手', '課題向き'];
+  }
+  return ['落ち着き', 'やさしい', '勉強向き'];
+}
 
 function CharactersScreen({ navigation }) {
   const {
@@ -37,7 +45,12 @@ function CharactersScreen({ navigation }) {
 
         <View style={styles.preview}>
           <CharacterView character={selectedCharacter} mood="calm" />
-          <Text style={styles.previewText}>現在: {selectedCharacter?.name}</Text>
+          <Text style={styles.previewText}>今の相棒：{selectedCharacter?.name}</Text>
+          <View style={styles.tags}>
+            {characterTags(selectedCharacter).map((tag) => (
+              <Text key={tag} style={styles.tag}>{tag}</Text>
+            ))}
+          </View>
         </View>
 
         <View style={styles.list}>
@@ -46,13 +59,23 @@ function CharactersScreen({ navigation }) {
             return (
               <View key={character.id} style={[styles.card, selected && styles.selectedCard]}>
                 <View style={styles.cardHeader}>
+                  <View style={styles.thumbnail}>
+                    {character.images?.wait ? (
+                      <Image source={character.images.wait} style={styles.thumbnailImage} resizeMode="contain" />
+                    ) : null}
+                  </View>
                   <View style={styles.cardText}>
                     <Text style={styles.cardTitle}>{character.name}</Text>
                     <Text style={styles.cardDescription}>
                       {character.description || '説明はありません。'}
                     </Text>
+                    <View style={styles.smallTags}>
+                      {characterTags(character).slice(0, 2).map((tag) => (
+                        <Text key={tag} style={styles.smallTag}>{tag}</Text>
+                      ))}
+                    </View>
                   </View>
-                  <Text style={styles.kind}>{character.builtIn ? '同梱' : 'カスタム'}</Text>
+                  <Text style={styles.kind}>{character.builtIn ? '標準キャラ' : 'カスタム'}</Text>
                 </View>
                 <View style={styles.actions}>
                   <Pressable
@@ -109,12 +132,12 @@ function CharactersScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#F6FAF3'
+    backgroundColor: colors.backgroundSoft
   },
   container: {
-    padding: 16,
-    gap: 16,
-    paddingBottom: 120
+    padding: spacing.screen,
+    gap: spacing.section,
+    paddingBottom: spacing.bottomTabPadding
   },
   header: {
     flexDirection: 'row',
@@ -122,21 +145,16 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   eyebrow: {
-    color: '#5E6F60',
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 1
+    ...typography.eyebrow
   },
   title: {
-    color: '#1F2A22',
-    fontSize: 28,
-    fontWeight: '900'
+    ...typography.screenTitle
   },
   addButton: {
     paddingVertical: 11,
     paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#315C3A'
+    borderRadius: radius.md,
+    backgroundColor: colors.primary
   },
   addText: {
     color: '#FFFFFF',
@@ -144,52 +162,99 @@ const styles = StyleSheet.create({
   },
   preview: {
     padding: 16,
-    borderRadius: 8,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#D5DED3',
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.border,
+    backgroundColor: colors.card,
     alignItems: 'center',
-    gap: 8
+    gap: 8,
+    ...shadows.card
   },
   previewText: {
-    color: '#315C3A',
+    color: colors.primary,
     fontWeight: '900'
+  },
+  tags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 7
+  },
+  tag: {
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: radius.pill,
+    overflow: 'hidden',
+    color: colors.primary,
+    backgroundColor: colors.primarySoft,
+    fontSize: 12,
+    fontWeight: '800'
   },
   list: {
     gap: 10
   },
   card: {
     padding: 14,
-    borderRadius: 8,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#D5DED3',
-    backgroundColor: '#FFFFFF',
-    gap: 12
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    gap: 12,
+    ...shadows.soft
   },
   selectedCard: {
-    borderColor: '#315C3A',
-    backgroundColor: '#F3F8EF'
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft
   },
   cardHeader: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10
+  },
+  thumbnail: {
+    width: 58,
+    height: 58,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.md,
+    backgroundColor: colors.card
+  },
+  thumbnailImage: {
+    width: 50,
+    height: 50
   },
   cardText: {
     flex: 1
   },
   cardTitle: {
-    color: '#1F2A22',
+    color: colors.text,
     fontSize: 17,
     fontWeight: '900'
   },
   cardDescription: {
     marginTop: 4,
-    color: '#516052',
+    color: colors.textMuted,
     lineHeight: 19
   },
+  smallTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8
+  },
+  smallTag: {
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: radius.pill,
+    overflow: 'hidden',
+    color: colors.primary,
+    backgroundColor: colors.card,
+    fontSize: 11,
+    fontWeight: '800'
+  },
   kind: {
-    color: '#516052',
+    color: colors.textMuted,
     fontSize: 12,
     fontWeight: '800'
   },
@@ -201,20 +266,20 @@ const styles = StyleSheet.create({
   secondary: {
     paddingVertical: 9,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: '#A8B8A4',
-    backgroundColor: '#FFFFFF'
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.card
   },
   secondaryText: {
-    color: '#315C3A',
+    color: colors.primary,
     fontWeight: '800'
   },
   selectedButton: {
     paddingVertical: 9,
     paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: '#315C3A'
+    borderRadius: radius.sm,
+    backgroundColor: colors.primary
   },
   selectedText: {
     color: '#FFFFFF',
@@ -223,13 +288,13 @@ const styles = StyleSheet.create({
   danger: {
     paddingVertical: 9,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: '#B24A4A',
-    backgroundColor: '#FFF7F7'
+    borderColor: '#D7A6A6',
+    backgroundColor: colors.dangerSoft
   },
   dangerText: {
-    color: '#8E2F2F',
+    color: colors.dangerText,
     fontWeight: '800'
   }
 });

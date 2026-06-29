@@ -23,25 +23,23 @@ async function listNotificationSchedules() {
 
 async function replaceNotificationSchedules(schedules) {
   const db = await getDatabase();
-  await db.withTransactionAsync(async () => {
-    await run(db, 'DELETE FROM notification_schedules');
-    for (const schedule of schedules) {
-      await run(
-        db,
-        `INSERT INTO notification_schedules
-          (signature, task_id, notification_id, type, minutes, scheduled_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          schedule.signature,
-          schedule.taskId,
-          schedule.notificationId,
-          schedule.type,
-          schedule.minutes,
-          schedule.scheduledAt
-        ]
-      );
-    }
-  });
+  await run(db, 'DELETE FROM notification_schedules');
+  for (const schedule of schedules) {
+    await run(
+      db,
+      `INSERT INTO notification_schedules
+        (signature, task_id, notification_id, type, minutes, scheduled_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        schedule.signature,
+        schedule.taskId,
+        schedule.notificationId,
+        schedule.type,
+        schedule.minutes,
+        schedule.scheduledAt
+      ]
+    );
+  }
 }
 
 async function deleteSchedulesForTask(taskId) {

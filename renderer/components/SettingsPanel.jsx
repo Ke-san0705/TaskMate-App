@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import AccountPanel from './AccountPanel';
+import GoogleCalendarPanel from './GoogleCalendarPanel';
 import ProjectManagementMode from './ProjectManagementMode';
 import '../styles/SettingsPanel.css';
 
@@ -165,6 +167,20 @@ export default function SettingsPanel() {
         >
           長期設定
         </button>
+        <button
+          type="button"
+          className={activeTab === 'calendar' ? 'is-active' : ''}
+          onClick={() => setActiveTab('calendar')}
+        >
+          Googleカレンダー
+        </button>
+        <button
+          type="button"
+          className={activeTab === 'account' ? 'is-active' : ''}
+          onClick={() => setActiveTab('account')}
+        >
+          アカウント
+        </button>
       </nav>
 
       {(message || error) && (
@@ -175,7 +191,11 @@ export default function SettingsPanel() {
         </div>
       )}
 
-      {activeTab === 'appearance' ? (
+      {activeTab === 'account' ? (
+        <AccountPanel selectedCharacter={settings.selectedCharacter} />
+      ) : activeTab === 'calendar' ? (
+        <GoogleCalendarPanel />
+      ) : activeTab === 'appearance' ? (
         <>
           <section className="settings-card">
             <div className="settings-card__heading">

@@ -1,11 +1,13 @@
 const React = require('react');
-const { Pressable, ScrollView, StyleSheet, Text, TextInput, View } = require('react-native');
+const { Pressable, ScrollView, StyleSheet, Text, View } = require('react-native');
 const { SafeAreaView } = require('react-native-safe-area-context');
 const EmptyState = require('../components/EmptyState');
 const ErrorBanner = require('../components/ErrorBanner');
+const JapaneseTextInput = require('../components/JapaneseTextInput');
 const TaskCard = require('../components/TaskCard');
 const { useTaskMate } = require('../context/TaskMateContext');
 const { ROUTES } = require('../constants/routes');
+const { colors, radius, spacing, typography } = require('../theme/taskMateTheme');
 
 function Section({ title, tasks, children }) {
   return (
@@ -71,7 +73,7 @@ function TasksScreen({ navigation }) {
           </Pressable>
         </View>
 
-        <TextInput
+        <JapaneseTextInput
           accessibilityLabel="タスクを絞り込む"
           value={filter}
           onChangeText={setFilter}
@@ -107,12 +109,12 @@ function TasksScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#F6FAF3'
+    backgroundColor: colors.backgroundSoft
   },
   container: {
-    padding: 16,
-    gap: 16,
-    paddingBottom: 120
+    padding: spacing.screen,
+    gap: spacing.section,
+    paddingBottom: spacing.bottomTabPadding
   },
   header: {
     flexDirection: 'row',
@@ -120,21 +122,16 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   eyebrow: {
-    color: '#5E6F60',
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 1
+    ...typography.eyebrow
   },
   title: {
-    color: '#1F2A22',
-    fontSize: 28,
-    fontWeight: '900'
+    ...typography.screenTitle
   },
   addButton: {
     paddingVertical: 11,
     paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#315C3A'
+    borderRadius: radius.md,
+    backgroundColor: colors.primary
   },
   addText: {
     color: '#FFFFFF',
@@ -142,23 +139,24 @@ const styles = StyleSheet.create({
   },
   search: {
     minHeight: 46,
-    borderRadius: 8,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#B9C8B7',
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.card,
     paddingHorizontal: 12,
+    color: colors.text,
     fontSize: 15
   },
   section: {
     gap: 10
   },
   sectionTitle: {
-    color: '#1F2A22',
+    color: colors.text,
     fontSize: 18,
     fontWeight: '900'
   },
   count: {
-    color: '#5E6F60',
+    color: colors.textMuted,
     fontSize: 14
   },
   list: {

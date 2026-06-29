@@ -2,21 +2,23 @@
   "expo": {
     "name": "TaskMate Mobile",
     "slug": "taskmate-mobile",
-    "version": "1.0.0",
+    "version": "1.3.0",
     "scheme": "taskmate",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "buildNumber": "1.3.0"
     },
     "android": {
       "package": "com.taskmate.mobile",
+      "versionCode": 13,
       "permissions": [
         "POST_NOTIFICATIONS"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#F3F8F1",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -26,6 +28,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "./plugins/withTaskMateWidget.cjs",
       "expo-sqlite",
       [
         "expo-notifications",

@@ -2,7 +2,8 @@ const STORAGE_KEYS = Object.freeze({
   settings: 'taskmate:settings:v1',
   lifeState: 'taskmate:life-state:v1',
   characters: 'taskmate:characters:v1',
-  selectedCharacter: 'taskmate:selected-character:v1'
+  selectedCharacter: 'taskmate:selected-character:v1',
+  googleCalendar: 'taskmate:google-calendar:v1'
 });
 
 const NOTIFICATION_CHANNEL_ID = 'taskmate-deadlines';
@@ -25,7 +26,12 @@ const DEFAULT_SETTINGS = Object.freeze({
   },
   reduceMotion: false,
   use24HourClock: true,
-  selectedCharacterId: 'Chara1'
+  selectedCharacterId: 'Chara1',
+  projectSettings: {
+    dailyAvailableMinutes: 120,
+    dailyRecommendationLimit: 5,
+    deadlineWarningDays: 7
+  }
 });
 
 module.exports = {

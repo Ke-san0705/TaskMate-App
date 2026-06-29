@@ -97,3 +97,30 @@ test('project store creates independent JSON files and links a project task to n
     await cleanup();
   }
 });
+
+test('project store keeps completed projects at 100 percent progress', async () => {
+  const { store, cleanup } = await createStore();
+  try {
+    await store.ensureInitialFiles();
+    const initial = await store.getProjectStateResult();
+    const category = initial.categories[0];
+    const project = await store.createProject({
+      categoryId: category.id,
+      name: 'アカウント管理',
+      description: 'ログインと同期の仕上げ',
+      startDate: '2026-06-24',
+      deadline: '2026-07-01',
+      priority: 'medium',
+      estimatedTotalMinutes: 0
+    });
+
+    await store.updateProject(project.id, { status: 'completed' });
+    const state = await store.getProjectStateResult();
+    const completedProject = state.projects.find((candidate) => candidate.id === project.id);
+
+    assert.equal(completedProject.status, 'completed');
+    assert.equal(completedProject.progress, 100);
+  } finally {
+    await cleanup();
+  }
+});

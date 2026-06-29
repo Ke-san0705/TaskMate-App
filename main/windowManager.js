@@ -577,6 +577,8 @@ function createWindowManager({
     sendTasksUpdated: (result) => broadcast(IPC.TASKS_UPDATED, result),
     sendProjectsUpdated: (result) => broadcast(IPC.PROJECTS_UPDATED, result),
     sendSettingsUpdated: (settings) => broadcast(IPC.SETTINGS_UPDATED, settings),
+    sendGoogleCalendarUpdated: (status) => broadcast(IPC.GOOGLE_CALENDAR_UPDATED, status),
+    sendSupabaseOAuthCallback: (payload) => broadcast(IPC.SUPABASE_OAUTH_CALLBACK, payload),
     sendBehaviorUpdated: (behavior) => broadcast(IPC.BEHAVIOR_UPDATED, behavior),
     isMainWindowVisible: () => Boolean(mainWindow?.isVisible()),
     isKnownSender,

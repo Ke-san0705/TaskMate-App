@@ -1,5 +1,6 @@
 const React = require('react');
 const { Image, Pressable, StyleSheet, Text, View } = require('react-native');
+const { colors } = require('../theme/taskMateTheme');
 
 const MOOD_LABELS = {
   calm: '落ち着き',
@@ -54,15 +55,15 @@ const styles = StyleSheet.create({
     height: '100%'
   },
   noImage: {
-    color: '#516052'
+    color: colors.textMuted
   },
   name: {
-    color: '#253328',
+    color: colors.text,
     fontSize: 18,
     fontWeight: '800'
   },
   mood: {
-    color: '#516052',
+    color: colors.textMuted,
     fontSize: 13,
     fontWeight: '700'
   }
