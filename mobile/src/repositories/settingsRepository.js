@@ -32,25 +32,18 @@ function normalizeSettings(value) {
       : DEFAULT_SETTINGS.notificationMinutesBefore,
     notificationOffsets:
       notificationOffsets.length > 0 ? notificationOffsets : DEFAULT_SETTINGS.notificationOffsets,
-    behaviorEnabled:
-      typeof source.behaviorEnabled === 'boolean'
-        ? source.behaviorEnabled
-        : DEFAULT_SETTINGS.behaviorEnabled,
-    ambientEffects:
-      typeof source.ambientEffects === 'boolean'
-        ? source.ambientEffects
-        : DEFAULT_SETTINGS.ambientEffects,
-    completionReactions:
-      typeof source.completionReactions === 'boolean'
-        ? source.completionReactions
-        : DEFAULT_SETTINGS.completionReactions,
-    relationshipMemoryEnabled:
-      typeof source.relationshipMemoryEnabled === 'boolean'
-        ? source.relationshipMemoryEnabled
-        : DEFAULT_SETTINGS.relationshipMemoryEnabled,
-    behaviorIntensity: ['low', 'normal', 'high'].includes(source.behaviorIntensity)
-      ? source.behaviorIntensity
-      : DEFAULT_SETTINGS.behaviorIntensity,
+    focusRestrictionEnabled:
+      typeof source.focusRestrictionEnabled === 'boolean'
+        ? source.focusRestrictionEnabled
+        : DEFAULT_SETTINGS.focusRestrictionEnabled,
+    defaultBlockedApps: Array.isArray(source.defaultBlockedApps)
+      ? source.defaultBlockedApps
+          .map((app) => ({
+            packageName: typeof app?.packageName === 'string' ? app.packageName : '',
+            appName: typeof app?.appName === 'string' ? app.appName : ''
+          }))
+          .filter((app) => app.packageName && app.appName)
+      : DEFAULT_SETTINGS.defaultBlockedApps,
     quietHours: {
       ...DEFAULT_SETTINGS.quietHours,
       ...(source.quietHours && typeof source.quietHours === 'object' ? source.quietHours : {})
@@ -66,13 +59,7 @@ function normalizeSettings(value) {
     selectedCharacterId:
       typeof source.selectedCharacterId === 'string' && source.selectedCharacterId
         ? source.selectedCharacterId
-        : DEFAULT_SETTINGS.selectedCharacterId,
-    projectSettings: {
-      ...DEFAULT_SETTINGS.projectSettings,
-      ...(source.projectSettings && typeof source.projectSettings === 'object'
-        ? source.projectSettings
-        : {})
-    }
+        : DEFAULT_SETTINGS.selectedCharacterId
   };
 }
 

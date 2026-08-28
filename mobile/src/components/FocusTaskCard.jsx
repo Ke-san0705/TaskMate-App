@@ -3,7 +3,7 @@ const { Pressable, StyleSheet, Text, View } = require('react-native');
 const { formatTaskTime } = require('../utils/localDate');
 const { colors, radius, shadows, typography } = require('../theme/taskMateTheme');
 
-function FocusTaskCard({ task, onComplete, onClear, onDetails }) {
+function FocusTaskCard({ task, onComplete, onClear, onDetails, onStart }) {
   if (!task) {
     return null;
   }
@@ -17,11 +17,19 @@ function FocusTaskCard({ task, onComplete, onClear, onDetails }) {
       <View style={styles.actions}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`${task.title}を完了する`}
-          onPress={() => onComplete(task.id)}
+          accessibilityLabel={`${task.title}の集中を始める`}
+          onPress={() => onStart(task)}
           style={styles.primary}
         >
-          <Text style={styles.primaryText}>完了</Text>
+          <Text style={styles.primaryText}>集中を始める</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${task.title}を完了する`}
+          onPress={() => onComplete(task.id)}
+          style={styles.secondary}
+        >
+          <Text style={styles.secondaryText}>完了</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"

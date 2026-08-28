@@ -8,8 +8,7 @@ const { createNativeStackNavigator } = require('@react-navigation/native-stack')
 const HomeScreen = require('../screens/HomeScreen');
 const TasksScreen = require('../screens/TasksScreen');
 const TaskEditScreen = require('../screens/TaskEditScreen');
-const ProjectsScreen = require('../screens/ProjectsScreen');
-const ProjectDetailScreen = require('../screens/ProjectDetailScreen');
+const FocusSetupScreen = require('../screens/FocusSetupScreen');
 const CharactersScreen = require('../screens/CharactersScreen');
 const CharacterEditScreen = require('../screens/CharacterEditScreen');
 const SettingsScreen = require('../screens/SettingsScreen');
@@ -62,11 +61,6 @@ function Tabs() {
         options={{ title: 'タスク', tabBarIcon: icon('tasks') }}
       />
       <Tab.Screen
-        name={ROUTES.Projects}
-        component={ProjectsScreen}
-        options={{ title: '長期', tabBarIcon: icon('projects') }}
-      />
-      <Tab.Screen
         name={ROUTES.Characters}
         component={CharactersScreen}
         options={{ title: 'キャラ', tabBarIcon: icon('characters') }}
@@ -111,9 +105,9 @@ function AppNavigator() {
           options={{ title: 'タスク' }}
         />
         <Stack.Screen
-          name={ROUTES.ProjectDetail}
-          component={ProjectDetailScreen}
-          options={{ title: '長期プロジェクト' }}
+          name={ROUTES.FocusSetup}
+          component={FocusSetupScreen}
+          options={{ title: '集中を始める' }}
         />
         <Stack.Screen
           name={ROUTES.CharacterEdit}

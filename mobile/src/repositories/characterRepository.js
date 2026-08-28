@@ -8,24 +8,28 @@ const { log, warn } = require('../utils/logger');
 let characterQueue = Promise.resolve();
 
 function normalizeImageMap(images = {}) {
-  const wait = images.wait || null;
-  const click = images.click || wait;
-  const alarm = images.alarm || wait;
+  const wait =
+    images.wait ||
+    images.calm ||
+    images.attentive ||
+    images.restless ||
+    images.focusing ||
+    null;
+  const click =
+    images.click ||
+    images.relieved ||
+    images.celebrating ||
+    wait;
+  const alarm =
+    images.alarm ||
+    images.notifying ||
+    images.anxious ||
+    images.overloaded ||
+    wait;
   return {
     wait,
     click,
-    alarm,
-    calm: images.calm || wait,
-    attentive: images.attentive || wait,
-    restless: images.restless || wait,
-    anxious: images.anxious || alarm || wait,
-    overloaded: images.overloaded || alarm || wait,
-    focusing: images.focusing || wait,
-    reconnecting: images.reconnecting || wait,
-    relieved: images.relieved || click || wait,
-    celebrating: images.celebrating || click || wait,
-    notifying: images.notifying || alarm || wait,
-    clicked: images.clicked || click || wait
+    alarm
   };
 }
 

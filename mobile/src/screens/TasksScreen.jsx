@@ -29,7 +29,7 @@ function TasksScreen({ navigation }) {
     completeTask,
     deleteTask,
     error,
-    lifeState,
+    focusState,
     setError,
     setFocusTask,
     taskGroups,
@@ -88,11 +88,14 @@ function TasksScreen({ navigation }) {
                 <TaskCard
                   key={task.id}
                   task={task}
-                  focusTaskId={lifeState?.focusTaskId}
+                  focusTaskId={focusState?.currentTaskId}
                   onComplete={completeTask}
                   onUndo={undoCompleteTask}
                   onDelete={deleteTask}
                   onFocus={setFocusTask}
+                  onStartFocus={(selected) =>
+                    navigation.navigate(ROUTES.FocusSetup, { taskId: selected.id })
+                  }
                   onEdit={(selected) =>
                     navigation.navigate(ROUTES.TaskEdit, { taskId: selected.id })
                   }

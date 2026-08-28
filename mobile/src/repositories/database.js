@@ -183,6 +183,50 @@ async function applySchemaV3(db) {
   log('Migration', 'schema v3 applied');
 }
 
+async function applySchemaV4(db) {
+  await runStatements(db, [
+    `CREATE TABLE IF NOT EXISTS focus_state (
+      key TEXT PRIMARY KEY NOT NULL,
+      value TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS focus_sessions (
+      id TEXT PRIMARY KEY NOT NULL,
+      task_id TEXT NOT NULL,
+      task_title TEXT NOT NULL,
+      started_at TEXT NOT NULL,
+      ended_at TEXT,
+      status TEXT NOT NULL,
+      completed INTEGER NOT NULL DEFAULT 0,
+      blocked_apps_json TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_focus_sessions_task_id ON focus_sessions(task_id)',
+    'CREATE INDEX IF NOT EXISTS idx_focus_sessions_status ON focus_sessions(status)',
+    `CREATE TABLE IF NOT EXISTS blocked_apps (
+      package_name TEXT PRIMARY KEY NOT NULL,
+      app_name TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS focus_interventions (
+      id TEXT PRIMARY KEY NOT NULL,
+      session_id TEXT,
+      package_name TEXT NOT NULL,
+      app_name TEXT NOT NULL DEFAULT '',
+      detected_at TEXT NOT NULL
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_focus_interventions_session_id ON focus_interventions(session_id)'
+  ]);
+
+  await run(db, 'INSERT OR REPLACE INTO schema_meta (key, value) VALUES (?, ?)', [
+    'schemaVersion',
+    '4'
+  ]);
+  log('Migration', 'schema v4 applied');
+}
+
 async function initializeDatabase() {
   const db = await SQLite.openDatabaseAsync(DATABASE_NAME);
   await run(db, 'PRAGMA journal_mode = WAL');
@@ -213,6 +257,10 @@ async function initializeDatabase() {
     await applySchemaV3(db);
     version = 3;
   }
+  if (version < 4) {
+    await applySchemaV4(db);
+    version = 4;
+  }
 
   log('Database', 'initialized');
   return db;
@@ -236,6 +284,10 @@ async function clearDatabaseForReset() {
     'DELETE FROM project_tasks',
     'DELETE FROM project_milestones',
     'DELETE FROM projects',
+    'DELETE FROM focus_interventions',
+    'DELETE FROM focus_sessions',
+    'DELETE FROM blocked_apps',
+    'DELETE FROM focus_state',
     'DELETE FROM tasks'
   ]);
 }

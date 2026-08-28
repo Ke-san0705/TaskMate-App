@@ -9,9 +9,9 @@ const { colors, radius, shadows, spacing, typography } = require('../theme/taskM
 
 function characterTags(character) {
   if (character?.id === 'Chara2') {
-    return ['やさしい', '応援上手', '課題向き'];
+    return ['案内役', '応援上手', '課題向き'];
   }
-  return ['落ち着き', 'やさしい', '勉強向き'];
+  return ['案内役', 'やさしい', '勉強向き'];
 }
 
 function CharactersScreen({ navigation }) {
@@ -44,8 +44,8 @@ function CharactersScreen({ navigation }) {
         </View>
 
         <View style={styles.preview}>
-          <CharacterView character={selectedCharacter} mood="calm" />
-          <Text style={styles.previewText}>今の相棒：{selectedCharacter?.name}</Text>
+          <CharacterView character={selectedCharacter} mood="wait" />
+          <Text style={styles.previewText}>今の案内役：{selectedCharacter?.name}</Text>
           <View style={styles.tags}>
             {characterTags(selectedCharacter).map((tag) => (
               <Text key={tag} style={styles.tag}>{tag}</Text>

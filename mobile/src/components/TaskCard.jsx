@@ -6,13 +6,13 @@ const { colors, radius, shadows } = require('../theme/taskMateTheme');
 
 const STATE_LABELS = {
   future: 'これから',
-  calm: '落ち着き',
+  today: '今日',
   warning: '近づき中',
   urgent: 'まもなく',
   overdue: '期限超過'
 };
 
-function TaskCard({ task, focusTaskId, onComplete, onUndo, onDelete, onEdit, onFocus }) {
+function TaskCard({ task, focusTaskId, onComplete, onUndo, onDelete, onEdit, onFocus, onStartFocus }) {
   const state = classifyTask(task, new Date()).state;
   const focused = focusTaskId === task.id;
   return (
@@ -55,6 +55,16 @@ function TaskCard({ task, focusTaskId, onComplete, onUndo, onDelete, onEdit, onF
             onPress={() => onFocus(task.id)}
           >
             <Text style={styles.secondaryText}>{focused ? '選択中' : '今やる'}</Text>
+          </Pressable>
+        ) : null}
+        {!task.completed ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${task.title}の集中を始める`}
+            style={styles.secondary}
+            onPress={() => onStartFocus(task)}
+          >
+            <Text style={styles.secondaryText}>集中</Text>
           </Pressable>
         ) : null}
         <Pressable
@@ -134,7 +144,7 @@ const styles = StyleSheet.create({
     fontWeight: '800'
   },
   badge_future: { backgroundColor: '#E6EEF2' },
-  badge_calm: { backgroundColor: colors.primarySoft },
+  badge_today: { backgroundColor: colors.primarySoft },
   badge_warning: { backgroundColor: colors.warningBg },
   badge_urgent: { backgroundColor: '#F2C6A6' },
   badge_overdue: {
