@@ -8,13 +8,10 @@ const {
   withStringsXml
 } = require('@expo/config-plugins');
 
-const WIDGET_PROVIDER = 'TaskMateWidgetProvider';
 const PACKAGE_PATH = path.join('com', 'taskmate', 'mobile');
-const DATABASE_NAME = 'taskmate-mobile.db';
+const NATIVE_SOURCE_ROOT = path.join(__dirname, 'android-native', 'java');
 
 const COLORS = {
-  // Android AppWidget uses XML resources instead of React Native styles.
-  // Keep these colors aligned with src/theme/taskMateTheme.js.
   taskmate_widget_background: '#F3F8F1',
   taskmate_widget_border: '#D5E1D3',
   taskmate_widget_primary: '#243427',
@@ -22,12 +19,35 @@ const COLORS = {
   taskmate_widget_accent: '#2F6138'
 };
 
+const LAUNCHER_MIPMAP_NAMES = [
+  'ic_launcher',
+  'ic_launcher_background',
+  'ic_launcher_foreground',
+  'ic_launcher_monochrome',
+  'ic_launcher_round'
+];
+
 const STRINGS = {
   taskmate_widget_character: 'TaskMate character',
   taskmate_widget_count_default: '今日 0',
   taskmate_widget_subtitle_default: 'タップして開く',
-  taskmate_widget_description: 'TaskMateの今日の予定をホーム画面に表示します'
+  taskmate_widget_description: 'TaskMateの今日の予定をホーム画面に表示します',
+  taskmate_accessibility_label: 'TaskMate アプリ制限',
+  taskmate_accessibility_description:
+    '集中中にユーザーが選んだアプリの起動だけを検知し、TaskMateへ戻る案内を表示します。画面内容、入力内容、メッセージ内容は取得しません。',
+  taskmate_focus_channel_name: 'TaskMate 集中',
+  taskmate_focus_notification_title: '集中に戻りましょう',
+  taskmate_focus_notification_body: '今は「%1$s」に取り組む時間です。'
 };
+
+const PROGUARD_RULES = `
+# TaskMate v2 native focus and widget bridge
+-keep class com.taskmate.mobile.TaskMateFocusModule { *; }
+-keep class com.taskmate.mobile.TaskMateFocusPackage { *; }
+-keep class com.taskmate.mobile.TaskMateAccessibilityService { *; }
+-keep class com.taskmate.mobile.TaskMateWidgetProvider { *; }
+-keep class com.taskmate.mobile.TaskMateBootReceiver { *; }
+`;
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
@@ -53,24 +73,79 @@ function copyFileIfChanged(fromPath, toPath) {
   fs.copyFileSync(fromPath, toPath);
 }
 
-function addWidgetReceiver(androidManifest) {
+function upsertPermission(androidManifest, name, attrs = {}) {
+  const root = androidManifest.manifest;
+  root['uses-permission'] = root['uses-permission'] || [];
+  const next = {
+    $: {
+      'android:name': name,
+      ...attrs
+    }
+  };
+  const index = root['uses-permission'].findIndex(
+    (item) => item?.$?.['android:name'] === name
+  );
+  if (index >= 0) {
+    root['uses-permission'][index] = next;
+  } else {
+    root['uses-permission'].push(next);
+  }
+}
+
+function removePermission(androidManifest, name) {
+  const root = androidManifest.manifest;
+  root['uses-permission'] = (root['uses-permission'] || []).filter(
+    (item) => item?.$?.['android:name'] !== name
+  );
+}
+
+function ensureLauncherQuery(androidManifest) {
+  const root = androidManifest.manifest;
+  root.queries = root.queries || [{}];
+  const queries = root.queries[0];
+  queries.intent = queries.intent || [];
+  const exists = queries.intent.some((intent) =>
+    intent.action?.some((item) => item?.$?.['android:name'] === 'android.intent.action.MAIN') &&
+    intent.category?.some((item) => item?.$?.['android:name'] === 'android.intent.category.LAUNCHER')
+  );
+  if (!exists) {
+    queries.intent.push({
+      action: [{ $: { 'android:name': 'android.intent.action.MAIN' } }],
+      category: [{ $: { 'android:name': 'android.intent.category.LAUNCHER' } }]
+    });
+  }
+}
+
+function upsertByName(items, next) {
+  const index = items.findIndex((item) => item?.$?.['android:name'] === next.$['android:name']);
+  if (index >= 0) {
+    items[index] = next;
+  } else {
+    items.push(next);
+  }
+}
+
+function addNativeEntries(androidManifest) {
+  removePermission(androidManifest, 'android.permission.SYSTEM_ALERT_WINDOW');
+  removePermission(androidManifest, 'android.permission.RECORD_AUDIO');
+  removePermission(androidManifest, 'android.permission.READ_EXTERNAL_STORAGE');
+  removePermission(androidManifest, 'android.permission.WRITE_EXTERNAL_STORAGE');
+  upsertPermission(androidManifest, 'android.permission.PACKAGE_USAGE_STATS', {
+    'tools:ignore': 'ProtectedPermissions'
+  });
+  upsertPermission(androidManifest, 'android.permission.RECEIVE_BOOT_COMPLETED');
+  ensureLauncherQuery(androidManifest);
+
   const application = AndroidConfig.Manifest.getMainApplicationOrThrow(androidManifest);
   application.receiver = application.receiver || [];
-  const receiverName = `.${WIDGET_PROVIDER}`;
-  const receiver = {
+  upsertByName(application.receiver, {
     $: {
-      'android:name': receiverName,
+      'android:name': '.TaskMateWidgetProvider',
       'android:exported': 'true'
     },
     'intent-filter': [
       {
-        action: [
-          {
-            $: {
-              'android:name': 'android.appwidget.action.APPWIDGET_UPDATE'
-            }
-          }
-        ]
+        action: [{ $: { 'android:name': 'android.appwidget.action.APPWIDGET_UPDATE' } }]
       }
     ],
     'meta-data': [
@@ -81,16 +156,43 @@ function addWidgetReceiver(androidManifest) {
         }
       }
     ]
-  };
+  });
+  upsertByName(application.receiver, {
+    $: {
+      'android:name': '.TaskMateBootReceiver',
+      'android:exported': 'false'
+    },
+    'intent-filter': [
+      {
+        action: [{ $: { 'android:name': 'android.intent.action.BOOT_COMPLETED' } }]
+      }
+    ]
+  });
 
-  const index = application.receiver.findIndex(
-    (item) => item?.$?.['android:name'] === receiverName
-  );
-  if (index >= 0) {
-    application.receiver[index] = receiver;
-  } else {
-    application.receiver.push(receiver);
-  }
+  application.service = application.service || [];
+  upsertByName(application.service, {
+    $: {
+      'android:name': '.TaskMateAccessibilityService',
+      'android:permission': 'android.permission.BIND_ACCESSIBILITY_SERVICE',
+      'android:exported': 'true',
+      'android:label': '@string/taskmate_accessibility_label'
+    },
+    'intent-filter': [
+      {
+        action: [
+          { $: { 'android:name': 'android.accessibilityservice.AccessibilityService' } }
+        ]
+      }
+    ],
+    'meta-data': [
+      {
+        $: {
+          'android:name': 'android.accessibilityservice',
+          'android:resource': '@xml/taskmate_accessibility_service'
+        }
+      }
+    ]
+  });
   return androidManifest;
 }
 
@@ -110,19 +212,31 @@ function addWidgetPauseHook(mainActivityPath) {
   fs.writeFileSync(mainActivityPath, source.replace(target, replacement));
 }
 
+function addNativePackageHook(mainApplicationPath) {
+  if (!fs.existsSync(mainApplicationPath)) {
+    return;
+  }
+  const source = fs.readFileSync(mainApplicationPath, 'utf8');
+  if (source.includes('add(TaskMateFocusPackage())')) {
+    return;
+  }
+  const target = '          // add(MyReactNativePackage())\n';
+  if (!source.includes(target)) {
+    return;
+  }
+  fs.writeFileSync(
+    mainApplicationPath,
+    source.replace(target, '          add(TaskMateFocusPackage())\n')
+  );
+}
+
 function widgetBackgroundXml() {
   return `<?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android">
   <solid android:color="@color/taskmate_widget_background" />
-  <stroke
-    android:width="1dp"
-    android:color="@color/taskmate_widget_border" />
+  <stroke android:width="1dp" android:color="@color/taskmate_widget_border" />
   <corners android:radius="24dp" />
-  <padding
-    android:bottom="12dp"
-    android:left="12dp"
-    android:right="12dp"
-    android:top="12dp" />
+  <padding android:bottom="12dp" android:left="12dp" android:right="12dp" android:top="12dp" />
 </shape>
 `;
 }
@@ -135,41 +249,71 @@ function widgetLayoutXml() {
   android:layout_height="match_parent"
   android:background="@drawable/taskmate_widget_background"
   android:elevation="2dp"
-  android:gravity="center"
-  android:orientation="vertical"
+  android:gravity="center_vertical"
+  android:orientation="horizontal"
   android:padding="10dp">
 
   <ImageView
     android:id="@+id/taskmate_widget_character"
-    android:layout_width="74dp"
-    android:layout_height="74dp"
+    android:layout_width="58dp"
+    android:layout_height="58dp"
     android:adjustViewBounds="true"
     android:contentDescription="@string/taskmate_widget_character"
     android:scaleType="fitCenter"
     android:src="@drawable/taskmate_chara1_wait" />
 
-  <TextView
-    android:id="@+id/taskmate_widget_count"
-    android:layout_width="match_parent"
+  <LinearLayout
+    android:layout_width="0dp"
     android:layout_height="wrap_content"
-    android:layout_marginTop="5dp"
-    android:gravity="center"
-    android:text="@string/taskmate_widget_count_default"
-    android:textColor="@color/taskmate_widget_accent"
-    android:textSize="24sp"
-    android:textStyle="bold" />
+    android:layout_marginStart="10dp"
+    android:layout_weight="1"
+    android:orientation="vertical">
 
-  <TextView
-    android:id="@+id/taskmate_widget_subtitle"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_marginTop="1dp"
-    android:ellipsize="end"
-    android:gravity="center"
-    android:maxLines="1"
-    android:text="@string/taskmate_widget_subtitle_default"
-    android:textColor="@color/taskmate_widget_muted"
-    android:textSize="12sp" />
+    <TextView
+      android:id="@+id/taskmate_widget_status"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:ellipsize="end"
+      android:maxLines="1"
+      android:text="@string/taskmate_widget_subtitle_default"
+      android:textColor="@color/taskmate_widget_accent"
+      android:textSize="12sp"
+      android:textStyle="bold" />
+
+    <TextView
+      android:id="@+id/taskmate_widget_title"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="2dp"
+      android:ellipsize="end"
+      android:maxLines="2"
+      android:text="@string/taskmate_widget_subtitle_default"
+      android:textColor="@color/taskmate_widget_primary"
+      android:textSize="15sp"
+      android:textStyle="bold" />
+
+    <TextView
+      android:id="@+id/taskmate_widget_progress"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="2dp"
+      android:ellipsize="end"
+      android:maxLines="1"
+      android:text="@string/taskmate_widget_count_default"
+      android:textColor="@color/taskmate_widget_muted"
+      android:textSize="12sp" />
+
+    <TextView
+      android:id="@+id/taskmate_widget_blocked"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="1dp"
+      android:ellipsize="end"
+      android:maxLines="1"
+      android:text=""
+      android:textColor="@color/taskmate_widget_muted"
+      android:textSize="11sp" />
+  </LinearLayout>
 </LinearLayout>
 `;
 }
@@ -181,8 +325,8 @@ function widgetInfoXml() {
   android:initialLayout="@layout/taskmate_widget"
   android:minHeight="110dp"
   android:minResizeHeight="90dp"
-  android:minResizeWidth="110dp"
-  android:minWidth="110dp"
+  android:minResizeWidth="180dp"
+  android:minWidth="180dp"
   android:previewImage="@drawable/taskmate_chara1_wait"
   android:resizeMode="horizontal|vertical"
   android:updatePeriodMillis="1800000"
@@ -190,151 +334,125 @@ function widgetInfoXml() {
 `;
 }
 
-function providerKt() {
-  return `package com.taskmate.mobile
-
-import android.app.PendingIntent
-import android.appwidget.AppWidgetManager
-import android.appwidget.AppWidgetProvider
-import android.content.ComponentName
-import android.content.Context
-import android.content.Intent
-import android.database.sqlite.SQLiteDatabase
-import android.widget.RemoteViews
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
-class TaskMateWidgetProvider : AppWidgetProvider() {
-  override fun onUpdate(
-    context: Context,
-    appWidgetManager: AppWidgetManager,
-    appWidgetIds: IntArray
-  ) {
-    for (appWidgetId in appWidgetIds) {
-      updateWidget(context, appWidgetManager, appWidgetId)
-    }
-  }
-
-  companion object {
-    private const val DATABASE_NAME = "${DATABASE_NAME}"
-
-    fun updateAll(context: Context) {
-      val appWidgetManager = AppWidgetManager.getInstance(context)
-      val componentName = ComponentName(context, TaskMateWidgetProvider::class.java)
-      val widgetIds = appWidgetManager.getAppWidgetIds(componentName)
-      for (widgetId in widgetIds) {
-        updateWidget(context, appWidgetManager, widgetId)
-      }
-    }
-
-    private fun updateWidget(
-      context: Context,
-      appWidgetManager: AppWidgetManager,
-      appWidgetId: Int
-    ) {
-      val state = readWidgetState(context)
-      val views = RemoteViews(context.packageName, R.layout.taskmate_widget)
-      views.setTextViewText(R.id.taskmate_widget_count, "今日 \${state.todayCount}")
-      views.setTextViewText(R.id.taskmate_widget_subtitle, state.subtitle)
-      views.setOnClickPendingIntent(R.id.taskmate_widget_root, openAppIntent(context))
-      appWidgetManager.updateAppWidget(appWidgetId, views)
-    }
-
-    private fun openAppIntent(context: Context): PendingIntent {
-      val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-        ?: Intent(context, MainActivity::class.java)
-      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-      return PendingIntent.getActivity(
-        context,
-        0,
-        intent,
-        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-      )
-    }
-
-    private fun readWidgetState(context: Context): WidgetState {
-      val dbFile = findDatabaseFile(context) ?: return WidgetState(
-        todayCount = 0,
-        subtitle = "TaskMateを開いて開始"
-      )
-
-      return try {
-        val today = SimpleDateFormat("yyyy-MM-dd", Locale.JAPAN).format(Date())
-        val db = SQLiteDatabase.openDatabase(
-          dbFile.absolutePath,
-          null,
-          SQLiteDatabase.OPEN_READONLY
-        )
-        try {
-          val todayCount = queryTodayCount(db, today)
-          val nextTitle = queryNextTitle(db, today)
-          WidgetState(
-            todayCount = todayCount,
-            subtitle = nextTitle ?: if (todayCount == 0) {
-              "今日のタスクはありません"
-            } else {
-              "今日も一つずつ進めましょう"
-            }
-          )
-        } finally {
-          db.close()
-        }
-      } catch (_: Throwable) {
-        WidgetState(todayCount = 0, subtitle = "TaskMateを開いて確認")
-      }
-    }
-
-    private fun findDatabaseFile(context: Context): File? {
-      val candidates = listOf(
-        File(context.filesDir, "SQLite/$DATABASE_NAME"),
-        context.getDatabasePath(DATABASE_NAME),
-        File(context.filesDir.parentFile, "databases/$DATABASE_NAME"),
-        File(context.noBackupFilesDir, "SQLite/$DATABASE_NAME")
-      )
-      return candidates.firstOrNull { it.exists() && it.isFile }
-    }
-
-    private fun queryTodayCount(db: SQLiteDatabase, today: String): Int {
-      db.rawQuery(
-        "SELECT COUNT(*) FROM tasks WHERE completed = 0 AND date <= ?",
-        arrayOf(today)
-      ).use { cursor ->
-        return if (cursor.moveToFirst()) cursor.getInt(0) else 0
-      }
-    }
-
-    private fun queryNextTitle(db: SQLiteDatabase, today: String): String? {
-      db.rawQuery(
-        """
-          SELECT title
-            FROM tasks
-           WHERE completed = 0 AND date <= ?
-           ORDER BY date ASC, COALESCE(time, '99:99') ASC, title ASC
-           LIMIT 1
-        """.trimIndent(),
-        arrayOf(today)
-      ).use { cursor ->
-        if (!cursor.moveToFirst()) {
-          return null
-        }
-        return cursor.getString(0).takeIf { it.isNotBlank() }
-      }
-    }
-  }
+function accessibilityServiceXml() {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+  android:accessibilityEventTypes="typeWindowStateChanged"
+  android:accessibilityFeedbackType="feedbackGeneric"
+  android:canPerformGestures="false"
+  android:canRetrieveWindowContent="false"
+  android:description="@string/taskmate_accessibility_description"
+  android:isAccessibilityTool="false"
+  android:notificationTimeout="300" />
+`;
 }
 
-private data class WidgetState(
-  val todayCount: Int,
-  val subtitle: String
-)
+function writeNativeSource(javaRoot, fileName, source) {
+  writeFileIfChanged(path.join(javaRoot, fileName), source);
+}
+
+function upsertGradleProperty(filePath, key, value) {
+  const line = `${key}=${value}`;
+  const source = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : '';
+  const lines = source.split(/\r?\n/);
+  const index = lines.findIndex((item) => item.startsWith(`${key}=`));
+  if (index >= 0) {
+    lines[index] = line;
+  } else {
+    if (lines.length > 0 && lines[lines.length - 1] !== '') {
+      lines.push('');
+    }
+    lines.push(line);
+  }
+  writeFileIfChanged(filePath, lines.join('\n'));
+}
+
+function appendProguardRules(filePath) {
+  const source = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : '';
+  if (source.includes('com.taskmate.mobile.TaskMateFocusModule')) {
+    return;
+  }
+  writeFileIfChanged(filePath, `${source.trimEnd()}\n${PROGUARD_RULES}`);
+}
+
+function patchBuildGradle(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return;
+  }
+  let source = fs.readFileSync(filePath, 'utf8');
+  const uploadSigningVars = `def taskMateUploadStoreFile = findProperty('TASKMATE_UPLOAD_STORE_FILE') ?: System.getenv('TASKMATE_UPLOAD_STORE_FILE')
+def taskMateUploadStorePassword = findProperty('TASKMATE_UPLOAD_STORE_PASSWORD') ?: System.getenv('TASKMATE_UPLOAD_STORE_PASSWORD')
+def taskMateUploadKeyAlias = findProperty('TASKMATE_UPLOAD_KEY_ALIAS') ?: System.getenv('TASKMATE_UPLOAD_KEY_ALIAS')
+def taskMateUploadKeyPassword = findProperty('TASKMATE_UPLOAD_KEY_PASSWORD') ?: System.getenv('TASKMATE_UPLOAD_KEY_PASSWORD')
+def hasTaskMateUploadSigning = taskMateUploadStoreFile && taskMateUploadStorePassword && taskMateUploadKeyAlias && taskMateUploadKeyPassword
 `;
+
+  if (!source.includes('def taskMateUploadStoreFile')) {
+    const marker =
+      "def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: false).toBoolean()\n";
+    if (!source.includes(marker)) {
+      throw new Error('Could not find enableMinifyInReleaseBuilds block in Android build.gradle.');
+    }
+    source = source.replace(marker, `${marker}${uploadSigningVars}`);
+  }
+
+  if (!source.includes('storeFile file(taskMateUploadStoreFile)')) {
+    const debugSigningBlock = `        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+`;
+    const releaseSigningBlock = `${debugSigningBlock}        release {
+            if (hasTaskMateUploadSigning) {
+                storeFile file(taskMateUploadStoreFile)
+                storePassword taskMateUploadStorePassword
+                keyAlias taskMateUploadKeyAlias
+                keyPassword taskMateUploadKeyPassword
+            }
+        }
+`;
+    if (!source.includes(debugSigningBlock)) {
+      throw new Error('Could not find debug signingConfig block in Android build.gradle.');
+    }
+    source = source.replace(debugSigningBlock, releaseSigningBlock);
+  }
+
+  source = source.replace(
+    /(buildTypes\s*\{[\s\S]*?debug\s*\{\s*)signingConfig hasTaskMateUploadSigning \? signingConfigs\.release : signingConfigs\.debug/,
+    '$1signingConfig signingConfigs.debug'
+  );
+  source = source.replace(
+    /(buildTypes\s*\{[\s\S]*?release\s*\{[\s\S]*?)signingConfig (?:signingConfigs\.debug|hasTaskMateUploadSigning \? signingConfigs\.release : signingConfigs\.debug)/,
+    '$1signingConfig hasTaskMateUploadSigning ? signingConfigs.release : signingConfigs.debug'
+  );
+
+  writeFileIfChanged(filePath, source);
+}
+
+function removeDuplicateLauncherWebp(resRoot) {
+  if (!fs.existsSync(resRoot)) {
+    return;
+  }
+  for (const entry of fs.readdirSync(resRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory() || !entry.name.startsWith('mipmap-')) {
+      continue;
+    }
+    const mipmapDir = path.join(resRoot, entry.name);
+    for (const name of LAUNCHER_MIPMAP_NAMES) {
+      const pngPath = path.join(mipmapDir, `${name}.png`);
+      const webpPath = path.join(mipmapDir, `${name}.webp`);
+      if (fs.existsSync(pngPath) && fs.existsSync(webpPath)) {
+        fs.unlinkSync(webpPath);
+      }
+    }
+  }
 }
 
 function withTaskMateWidget(config) {
   config = withAndroidManifest(config, (modConfig) => {
-    modConfig.modResults = addWidgetReceiver(modConfig.modResults);
+    modConfig.modResults = addNativeEntries(modConfig.modResults);
     return modConfig;
   });
 
@@ -373,18 +491,48 @@ function withTaskMateWidget(config) {
         'wait.png'
       );
 
+      upsertGradleProperty(
+        path.join(androidRoot, 'gradle.properties'),
+        'android.enableMinifyInReleaseBuilds',
+        'true'
+      );
+      upsertGradleProperty(
+        path.join(androidRoot, 'gradle.properties'),
+        'android.enableShrinkResourcesInReleaseBuilds',
+        'true'
+      );
+      patchBuildGradle(path.join(androidRoot, 'app', 'build.gradle'));
+      appendProguardRules(path.join(androidRoot, 'app', 'proguard-rules.pro'));
+      removeDuplicateLauncherWebp(resRoot);
       writeFileIfChanged(
         path.join(resRoot, 'drawable', 'taskmate_widget_background.xml'),
         widgetBackgroundXml()
       );
       writeFileIfChanged(path.join(resRoot, 'layout', 'taskmate_widget.xml'), widgetLayoutXml());
       writeFileIfChanged(path.join(resRoot, 'xml', 'taskmate_widget_info.xml'), widgetInfoXml());
+      writeFileIfChanged(
+        path.join(resRoot, 'xml', 'taskmate_accessibility_service.xml'),
+        accessibilityServiceXml()
+      );
       copyFileIfChanged(
         charaSource,
         path.join(resRoot, 'drawable-nodpi', 'taskmate_chara1_wait.png')
       );
-      writeFileIfChanged(path.join(javaRoot, `${WIDGET_PROVIDER}.kt`), providerKt());
       addWidgetPauseHook(path.join(javaRoot, 'MainActivity.kt'));
+      addNativePackageHook(path.join(javaRoot, 'MainApplication.kt'));
+      for (const fileName of [
+        'TaskMateAccessibilityService.kt',
+        'TaskMateBootReceiver.kt',
+        'TaskMateFocusModule.kt',
+        'TaskMateFocusPackage.kt',
+        'TaskMateWidgetProvider.kt'
+      ]) {
+        const sourcePath = path.join(NATIVE_SOURCE_ROOT, fileName);
+        if (!fs.existsSync(sourcePath)) {
+          throw new Error(`Missing TaskMate native source template: ${sourcePath}`);
+        }
+        writeNativeSource(javaRoot, fileName, fs.readFileSync(sourcePath, 'utf8'));
+      }
       return modConfig;
     }
   ]);
