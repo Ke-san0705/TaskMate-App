@@ -167,19 +167,16 @@ Third-party SDK caveat:
 
 - Expo/React Native dependencies may declare network, notification, install referrer, or badge-related permissions. Before production, verify no analytics/crash/push SDK is initialized in a way that transmits data. If any telemetry is enabled later, update Data Safety and the privacy policy.
 
-## Privacy Policy Draft
+## Privacy Policy
 
-TaskMateは、ユーザーが今やるタスクを決め、集中中に自分で選んだアプリから離れることを支援するローカルファーストのタスク管理アプリです。
+Publishable source files:
 
-TaskMateが端末内に保存する情報は、タスク、締切、完了状態、設定、選択したキャラクター、集中セッション、制限対象として選んだアプリ名とパッケージ名です。これらの情報は端末内に保存され、TaskMateの外部サーバーへ送信されません。
+- Markdown: `docs/privacy-policy.md`
+- HTML: `docs/privacy-policy.html`
 
-集中モードのアプリ制限を利用する場合、TaskMateはAndroidのユーザー補助機能を使い、集中中にユーザーが選んだ制限対象アプリが前面に表示されたことを検知します。TaskMateは画面内容、キー入力、メッセージ内容、Web閲覧内容、写真、通話履歴、連絡先、位置情報を読み取りません。制限対象アプリを検知した場合、TaskMateへ戻る案内を表示します。
+Google Play requires an active, publicly accessible, non-PDF, non-editable privacy policy URL. Host `docs/privacy-policy.html` on GitHub Pages, a static site, or another public HTTPS page before submitting the app.
 
-通知機能は、締切や集中状態をユーザーに知らせるために使用されます。端末再起動後には、必要に応じてウィジェットと集中状態を復元します。
-
-ユーザーは設定画面からローカルデータを削除できます。削除すると、端末内に保存されたTaskMateのタスク、設定、集中履歴などが削除されます。
-
-TaskMateは広告、課金、アカウント、クラウド同期、AI機能をv2初期版では使用しません。
+The current policy uses the Google Play store listing developer contact as the privacy inquiry mechanism because no dedicated public support email is committed in this repository. If a dedicated public email or contact form is created, update the Contact section before publishing.
 
 ## Store Listing Draft
 
@@ -247,15 +244,20 @@ Required or strongly recommended:
 - Privacy policy public URL.
 - Accessibility declaration/demo video URL if Play Console requests it.
 
-Recommended screenshot set:
+Prepared screenshot set:
 
-- Home with "今やる" task.
-- Focus setup with blocked app selection.
-- Accessibility prominent disclosure.
-- Focus active screen.
-- Blocked-app warning screen.
-- Widget showing today's progress.
-- Settings screen.
+- `docs/google-play/screenshots/phone/01-home-now-task.png`
+- `docs/google-play/screenshots/phone/02-task-list.png`
+- `docs/google-play/screenshots/phone/03-focus-task-selection.png`
+- `docs/google-play/screenshots/phone/04-blocked-app-selection.png`
+- `docs/google-play/screenshots/phone/05-accessibility-disclosure.png`
+- `docs/google-play/screenshots/phone/06-focus-active.png`
+- `docs/google-play/screenshots/phone/07-blocked-app-return.png`
+- `docs/google-play/screenshots/phone/08-home-widget.png`
+
+Local review sheet:
+
+- `docs/google-play/screenshots/phone-contact-sheet.png`
 
 ## Internal Testing Flow
 
