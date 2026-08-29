@@ -45,13 +45,20 @@ async function openAccessibilitySettings() {
   }
 }
 
-async function setFocusMonitorState({ active, taskTitle = '', blockedApps = [] }) {
+async function setFocusMonitorState({
+  active,
+  taskTitle = '',
+  startedAt = '',
+  blockedApps = []
+}) {
   if (!isAvailable() || typeof native.setFocusMonitorState !== 'function') {
     return false;
   }
+  const startedAtMillis = startedAt ? new Date(startedAt).getTime() : 0;
   await native.setFocusMonitorState(
     Boolean(active),
     taskTitle,
+    Number.isFinite(startedAtMillis) ? startedAtMillis : 0,
     blockedApps.map((app) => app.packageName).filter(Boolean),
     blockedApps.map((app) => app.appName).filter(Boolean)
   );

@@ -106,6 +106,7 @@ function TaskMateProvider({ children }) {
     await focusNativeModule.setFocusMonitorState({
       active: Boolean(enabled && activeSession),
       taskTitle: activeSession?.taskTitle || '',
+      startedAt: activeSession?.startedAt || '',
       blockedApps: activeSession?.blockedApps || []
     });
     await focusNativeModule.updateWidget();

@@ -45,13 +45,22 @@ const STRINGS = {
     '集中中にユーザーが選んだアプリの起動だけを検知し、TaskMateへ戻る案内を表示します。画面内容、入力内容、メッセージ内容は取得しません。',
   taskmate_focus_channel_name: 'TaskMate 集中',
   taskmate_focus_notification_title: '集中に戻りましょう',
-  taskmate_focus_notification_body: '今は「%1$s」に取り組む時間です。'
+  taskmate_focus_notification_body: '今は「%1$s」に取り組む時間です。',
+  taskmate_block_brand: 'TASKMATE',
+  taskmate_block_default_task: '現在の任務',
+  taskmate_block_unknown_app: '制限対象アプリ',
+  taskmate_block_restricted: 'このアプリは現在制限されています。',
+  taskmate_block_command: '持ち場に戻れ。\\nお前の居場所はここではない。',
+  taskmate_block_mission_label: '現在の任務',
+  taskmate_block_timer_label: '集中時間',
+  taskmate_block_return_button: 'TaskMateに戻る'
 };
 
 const PROGUARD_RULES = `
 # TaskMate v2 native focus and widget bridge
 -keep class com.taskmate.mobile.TaskMateFocusModule { *; }
 -keep class com.taskmate.mobile.TaskMateFocusPackage { *; }
+-keep class com.taskmate.mobile.FocusBlockedActivity { *; }
 -keep class com.taskmate.mobile.TaskMateAccessibilityService { *; }
 -keep class com.taskmate.mobile.TaskMateWidgetProvider { *; }
 -keep class com.taskmate.mobile.TaskMateBootReceiver { *; }
@@ -201,6 +210,18 @@ function addNativeEntries(androidManifest) {
         }
       }
     ]
+  });
+  application.activity = application.activity || [];
+  upsertByName(application.activity, {
+    $: {
+      'android:name': '.FocusBlockedActivity',
+      'android:excludeFromRecents': 'true',
+      'android:exported': 'false',
+      'android:finishOnTaskLaunch': 'true',
+      'android:launchMode': 'singleTask',
+      'android:screenOrientation': 'portrait',
+      'android:theme': '@style/AppTheme'
+    }
   });
   return androidManifest;
 }
@@ -577,6 +598,7 @@ function withTaskMateWidget(config) {
       addWidgetPauseHook(path.join(javaRoot, 'MainActivity.kt'));
       addNativePackageHook(path.join(javaRoot, 'MainApplication.kt'));
       for (const fileName of [
+        'FocusBlockedActivity.kt',
         'TaskMateAccessibilityService.kt',
         'TaskMateBootReceiver.kt',
         'TaskMateFocusModule.kt',

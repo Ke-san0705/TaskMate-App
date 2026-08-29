@@ -71,6 +71,7 @@ class TaskMateFocusModule(
   fun setFocusMonitorState(
     active: Boolean,
     taskTitle: String,
+    startedAtMillis: Double,
     blockedPackages: ReadableArray,
     blockedAppNames: ReadableArray,
     promise: Promise
@@ -85,13 +86,18 @@ class TaskMateFocusModule(
         blockedAppNames.getString(index)?.takeIf { it.isNotBlank() }?.let { names.add(it) }
       }
       val prefs = reactContext.getSharedPreferences(FOCUS_PREFS, Context.MODE_PRIVATE)
-      prefs.edit()
+      val editor = prefs.edit()
         .putBoolean(KEY_ACTIVE, active)
         .putString(KEY_TASK_TITLE, taskTitle)
         .putStringSet(KEY_BLOCKED_PACKAGES, packages)
         .putStringSet(KEY_BLOCKED_NAMES, names)
         .putLong(KEY_UPDATED_AT, System.currentTimeMillis())
-        .apply()
+      if (active && startedAtMillis > 0) {
+        editor.putLong(KEY_STARTED_AT_MILLIS, startedAtMillis.toLong())
+      } else if (!active) {
+        editor.remove(KEY_STARTED_AT_MILLIS)
+      }
+      editor.apply()
       TaskMateWidgetProvider.updateAll(reactContext)
       promise.resolve(true)
     } catch (error: Throwable) {
@@ -141,6 +147,7 @@ class TaskMateFocusModule(
     const val KEY_TASK_TITLE = "task_title"
     const val KEY_BLOCKED_PACKAGES = "blocked_packages"
     const val KEY_BLOCKED_NAMES = "blocked_names"
+    const val KEY_STARTED_AT_MILLIS = "started_at_millis"
     const val KEY_UPDATED_AT = "updated_at"
   }
 }

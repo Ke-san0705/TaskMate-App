@@ -32,11 +32,26 @@ function isFocusBlockedUrl(url) {
   return String(url || '').startsWith('taskmate://focus-blocked');
 }
 
+function isFocusActiveUrl(url) {
+  return String(url || '').startsWith('taskmate://focus-active');
+}
+
 function navigateToFocusBlocked(url) {
   const navigate = () => {
     navigationRef.navigate(ROUTES.FocusBlocked, {
       packageName: getFocusBlockedPackage(url)
     });
+  };
+  if (navigationRef.isReady()) {
+    navigate();
+  } else {
+    setTimeout(navigate, 250);
+  }
+}
+
+function navigateToFocusActive() {
+  const navigate = () => {
+    navigationRef.navigate(ROUTES.Tabs, { screen: ROUTES.Home });
   };
   if (navigationRef.isReady()) {
     navigate();
@@ -120,12 +135,16 @@ function FocusLinkBridge() {
       .then((url) => {
         if (mounted && isFocusBlockedUrl(url)) {
           navigateToFocusBlocked(url);
+        } else if (mounted && isFocusActiveUrl(url)) {
+          navigateToFocusActive();
         }
       })
       .catch(() => {});
     const subscription = Linking.addEventListener('url', ({ url }) => {
       if (isFocusBlockedUrl(url)) {
         navigateToFocusBlocked(url);
+      } else if (isFocusActiveUrl(url)) {
+        navigateToFocusActive();
       }
     });
     return () => {

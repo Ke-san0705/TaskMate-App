@@ -36,18 +36,34 @@ class TaskMateAccessibilityService : AccessibilityService() {
       return
     }
     lastInterventionAt = now
-    performGlobalAction(GLOBAL_ACTION_BACK)
-    openTaskMate(packageName)
+    openBlockedScreen(packageName)
     showFocusNotification()
   }
 
   override fun onInterrupt() = Unit
 
-  private fun openTaskMate(packageName: String) {
+  private fun openBlockedScreen(blockedPackageName: String) {
+    try {
+      val intent = Intent(this, FocusBlockedActivity::class.java).apply {
+        addFlags(
+          Intent.FLAG_ACTIVITY_NEW_TASK or
+            Intent.FLAG_ACTIVITY_CLEAR_TOP or
+            Intent.FLAG_ACTIVITY_NO_ANIMATION
+        )
+        putExtra(FocusBlockedActivity.EXTRA_PACKAGE_NAME, blockedPackageName)
+      }
+      startActivity(intent)
+    } catch (_: Throwable) {
+      performGlobalAction(GLOBAL_ACTION_BACK)
+      openTaskMate(blockedPackageName)
+    }
+  }
+
+  private fun openTaskMate(blockedPackageName: String) {
     try {
       val intent = Intent(
         Intent.ACTION_VIEW,
-        Uri.parse("taskmate://focus-blocked?package=${Uri.encode(packageName)}")
+        Uri.parse("taskmate://focus-blocked?package=${Uri.encode(blockedPackageName)}")
       )
       intent.setPackage(this.packageName)
       intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
