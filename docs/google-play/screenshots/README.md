@@ -11,6 +11,10 @@ Device used:
 
 The Play-ready screenshots in `phone/` are derived from real-device captures. Each image was cropped from the device screenshot to remove the Android status/navigation areas, then resized to 1080 x 1920 PNG.
 
+Public URL base:
+
+- `https://ke-san0705.github.io/TaskMate-App/google-play/screenshots/phone/`
+
 Recommended Google Play phone screenshot order:
 
 1. `phone/01-home-now-task.png` - Home screen with the current task.

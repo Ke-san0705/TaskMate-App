@@ -174,7 +174,16 @@ Publishable source files:
 - Markdown: `docs/privacy-policy.md`
 - HTML: `docs/privacy-policy.html`
 
-Google Play requires an active, publicly accessible, non-PDF, non-editable privacy policy URL. Host `docs/privacy-policy.html` on GitHub Pages, a static site, or another public HTTPS page before submitting the app.
+Live URL:
+
+- https://ke-san0705.github.io/TaskMate-App/privacy-policy.html
+
+GitHub Pages source:
+
+- Branch: `feature/windows-installer`
+- Path: `/docs`
+
+Google Play requires an active, publicly accessible, non-PDF, non-editable privacy policy URL. The URL above returned `200 text/html` after GitHub Pages deployment.
 
 The current policy uses the Google Play store listing developer contact as the privacy inquiry mechanism because no dedicated public support email is committed in this repository. If a dedicated public email or contact form is created, update the Contact section before publishing.
 
@@ -254,6 +263,10 @@ Prepared screenshot set:
 - `docs/google-play/screenshots/phone/06-focus-active.png`
 - `docs/google-play/screenshots/phone/07-blocked-app-return.png`
 - `docs/google-play/screenshots/phone/08-home-widget.png`
+
+Public screenshot base URL:
+
+- `https://ke-san0705.github.io/TaskMate-App/google-play/screenshots/phone/`
 
 Local review sheet:
 
