@@ -36,6 +36,11 @@ function normalizeSettings(value) {
       typeof source.focusRestrictionEnabled === 'boolean'
         ? source.focusRestrictionEnabled
         : DEFAULT_SETTINGS.focusRestrictionEnabled,
+    focusAccessibilityDisclosureAcceptedAt:
+      typeof source.focusAccessibilityDisclosureAcceptedAt === 'string' &&
+      source.focusAccessibilityDisclosureAcceptedAt
+        ? source.focusAccessibilityDisclosureAcceptedAt
+        : DEFAULT_SETTINGS.focusAccessibilityDisclosureAcceptedAt,
     defaultBlockedApps: Array.isArray(source.defaultBlockedApps)
       ? source.defaultBlockedApps
           .map((app) => ({

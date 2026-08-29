@@ -5,6 +5,10 @@ const ErrorBanner = require('../components/ErrorBanner');
 const TimeWheelInput = require('../components/TimeWheelInput');
 const { useTaskMate } = require('../context/TaskMateContext');
 const { ROUTES } = require('../constants/routes');
+const {
+  ACCESSIBILITY_DISCLOSURE,
+  hasAcceptedAccessibilityDisclosure
+} = require('../constants/focusDisclosure');
 const { colors, radius, shadows, spacing, typography } = require('../theme/taskMateTheme');
 
 function Row({ title, body, children }) {
@@ -34,7 +38,6 @@ function SettingsScreen({ navigation }) {
     focusPermissions,
     focusState,
     openAccessibilitySettings,
-    openUsageAccessSettings,
     requestNotifications,
     selectedCharacter,
     setError,
@@ -42,9 +45,31 @@ function SettingsScreen({ navigation }) {
     updateSettings
   } = useTaskMate();
   const [message, setMessage] = React.useState('');
+  const disclosureAccepted = hasAcceptedAccessibilityDisclosure(settings);
+  const [consentChecked, setConsentChecked] = React.useState(disclosureAccepted);
+
+  React.useEffect(() => {
+    if (disclosureAccepted) {
+      setConsentChecked(true);
+    }
+  }, [disclosureAccepted]);
 
   if (!settings) {
     return null;
+  }
+
+  async function acceptAndOpenAccessibility() {
+    if (!disclosureAccepted && !consentChecked) {
+      Alert.alert('確認してください', ACCESSIBILITY_DISCLOSURE.consentLabel);
+      return;
+    }
+    if (!disclosureAccepted) {
+      await updateSettings({
+        focusAccessibilityDisclosureAcceptedAt: new Date().toISOString()
+      });
+      setMessage('ユーザー補助の利用に同意しました。');
+    }
+    await openAccessibilitySettings();
   }
 
   async function toggle(key, value) {
@@ -155,31 +180,39 @@ function SettingsScreen({ navigation }) {
                 disabledText="未設定"
               />
             </View>
-            <View style={styles.permissionItem}>
-              <Text style={styles.permissionLabel}>使用状況アクセス</Text>
-              <StatusBadge
-                enabled={focusPermissions.usageAccess}
-                enabledText="有効"
-                disabledText="任意"
-              />
-            </View>
           </View>
-          <View style={styles.buttonRow}>
+          <View style={styles.disclosureBox}>
+            <Text style={styles.disclosureTitle}>{ACCESSIBILITY_DISCLOSURE.title}</Text>
+            {ACCESSIBILITY_DISCLOSURE.paragraphs.map((paragraph) => (
+              <Text key={paragraph} style={styles.disclosureText}>
+                {paragraph}
+              </Text>
+            ))}
+            {disclosureAccepted ? (
+              <Text style={styles.acceptedText}>同意済みです。</Text>
+            ) : (
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: consentChecked }}
+                accessibilityLabel={ACCESSIBILITY_DISCLOSURE.consentLabel}
+                style={styles.consentRow}
+                onPress={() => setConsentChecked((current) => !current)}
+              >
+                <View style={[styles.checkbox, consentChecked && styles.checkboxSelected]}>
+                  {consentChecked ? <Text style={styles.checkboxText}>✓</Text> : null}
+                </View>
+                <Text style={styles.consentText}>{ACCESSIBILITY_DISCLOSURE.consentLabel}</Text>
+              </Pressable>
+            )}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="ユーザー補助設定を開く"
+              accessibilityLabel={
+                disclosureAccepted ? 'ユーザー補助設定を開く' : '同意してユーザー補助設定を開く'
+              }
               style={styles.secondaryFull}
-              onPress={openAccessibilitySettings}
+              onPress={acceptAndOpenAccessibility}
             >
-              <Text style={styles.secondaryText}>ユーザー補助</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="使用状況へのアクセス設定を開く"
-              style={styles.secondaryFull}
-              onPress={openUsageAccessSettings}
-            >
-              <Text style={styles.secondaryText}>使用状況</Text>
+              <Text style={styles.secondaryText}>ユーザー補助設定を開く</Text>
             </Pressable>
           </View>
           <Pressable
@@ -336,7 +369,6 @@ const styles = StyleSheet.create({
     gap: 6
   },
   permissionGrid: {
-    flexDirection: 'row',
     gap: 10
   },
   permissionItem: {
@@ -369,9 +401,57 @@ const styles = StyleSheet.create({
     color: colors.dangerText,
     backgroundColor: colors.dangerSoft
   },
-  buttonRow: {
-    flexDirection: 'row',
+  disclosureBox: {
     gap: 10
+  },
+  disclosureTitle: {
+    color: colors.text,
+    fontWeight: '900'
+  },
+  disclosureText: {
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 20
+  },
+  consentRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 10,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.cardSoft
+  },
+  checkbox: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: colors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  checkboxSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary
+  },
+  checkboxText: {
+    color: colors.white,
+    fontWeight: '900'
+  },
+  consentText: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 19
+  },
+  acceptedText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '800'
   },
   primaryFull: {
     alignItems: 'center',
@@ -384,7 +464,6 @@ const styles = StyleSheet.create({
     fontWeight: '900'
   },
   secondaryFull: {
-    flex: 1,
     alignItems: 'center',
     padding: 12,
     borderRadius: radius.sm,

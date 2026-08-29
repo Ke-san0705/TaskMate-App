@@ -61,12 +61,15 @@ function HomeScreen({ navigation }) {
     error,
     expireUndoItem,
     finishFocusSession,
+    focusPermissions,
     focusState,
     focusTask,
+    openAccessibilitySettings,
     progress,
     selectedCharacter,
     setError,
     setFocusTask,
+    settings,
     taskGroups,
     tasks,
     undoCompleteTask,
@@ -74,6 +77,10 @@ function HomeScreen({ navigation }) {
   } = useTaskMate();
 
   const activeSession = focusState.activeSession;
+  const restrictionNeedsAccessibility =
+    activeSession?.blockedApps?.length > 0 && settings?.focusRestrictionEnabled !== false;
+  const restrictionUnavailable =
+    Boolean(restrictionNeedsAccessibility) && !focusPermissions.accessibility;
   const todayItems = React.useMemo(
     () => [...taskGroups.overdue, ...taskGroups.today].slice(0, 6),
     [taskGroups.overdue, taskGroups.today]
@@ -118,7 +125,27 @@ function HomeScreen({ navigation }) {
                 <Text style={styles.blockedEmpty}>制限アプリなし</Text>
               )}
             </View>
-            <Text style={styles.blockedText}>を制限しています</Text>
+            {restrictionUnavailable ? (
+              <View style={styles.focusWarning}>
+                <Text style={styles.focusWarningTitle}>アプリ制限は一時停止中</Text>
+                <Text style={styles.focusWarningText}>
+                  ユーザー補助サービスが無効です。タスクとタイマーは続いていますが、対象アプリへの介入は有効化後に再開します。
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="ユーザー補助設定を開く"
+                  style={styles.warningButton}
+                  onPress={openAccessibilitySettings}
+                >
+                  <Text style={styles.warningButtonText}>ユーザー補助設定を開く</Text>
+                </Pressable>
+              </View>
+            ) : null}
+            <Text style={styles.blockedText}>
+              {restrictionUnavailable
+                ? 'ユーザー補助サービスを有効にすると制限できます'
+                : 'を制限しています'}
+            </Text>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="集中タスクを完了する"
@@ -473,6 +500,40 @@ const styles = StyleSheet.create({
   blockedText: {
     color: colors.textMuted,
     fontWeight: '800'
+  },
+  focusWarning: {
+    alignSelf: 'stretch',
+    padding: 14,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: '#E2C66E',
+    backgroundColor: colors.warningBg,
+    gap: 8
+  },
+  focusWarningTitle: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '900'
+  },
+  focusWarningText: {
+    color: colors.text,
+    fontSize: 13,
+    lineHeight: 19
+  },
+  warningButton: {
+    alignSelf: 'flex-start',
+    minHeight: 42,
+    justifyContent: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: radius.sm,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.borderStrong
+  },
+  warningButtonText: {
+    color: colors.primary,
+    fontWeight: '900'
   },
   completeButton: {
     alignSelf: 'stretch',

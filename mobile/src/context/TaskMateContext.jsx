@@ -16,6 +16,9 @@ const characterRepository = require('../repositories/characterRepository');
 const notificationService = require('../services/notificationService');
 const focusNativeModule = require('../services/focusNativeModule');
 const { STORAGE_KEYS } = require('../constants/defaults');
+const {
+  hasAcceptedAccessibilityDisclosure
+} = require('../constants/focusDisclosure');
 const { log, warn } = require('../utils/logger');
 const { messageFromError } = require('../utils/validation');
 
@@ -70,8 +73,7 @@ function TaskMateProvider({ children }) {
   const [notificationTaskId, setNotificationTaskId] = React.useState(null);
   const [installedApps, setInstalledApps] = React.useState([]);
   const [focusPermissions, setFocusPermissions] = React.useState({
-    accessibility: false,
-    usageAccess: false
+    accessibility: false
   });
   const lastDialogueRef = React.useRef('');
   const [dialogue, setDialogue] = React.useState('今やることを一つ決めよう。');
@@ -84,11 +86,8 @@ function TaskMateProvider({ children }) {
   const progress = React.useMemo(() => todayProgress(tasks), [tasks]);
 
   const refreshFocusPermissions = React.useCallback(async () => {
-    const [accessibility, usageAccess] = await Promise.all([
-      focusNativeModule.isAccessibilityServiceEnabled(),
-      focusNativeModule.isUsageAccessGranted()
-    ]);
-    const next = { accessibility, usageAccess };
+    const accessibility = await focusNativeModule.isAccessibilityServiceEnabled();
+    const next = { accessibility };
     setFocusPermissions(next);
     return next;
   }, []);
@@ -101,7 +100,9 @@ function TaskMateProvider({ children }) {
 
   const syncNativeFocus = React.useCallback(async (nextFocusState, nextSettings) => {
     const activeSession = nextFocusState?.activeSession;
-    const enabled = nextSettings?.focusRestrictionEnabled !== false;
+    const enabled =
+      nextSettings?.focusRestrictionEnabled !== false &&
+      hasAcceptedAccessibilityDisclosure(nextSettings);
     await focusNativeModule.setFocusMonitorState({
       active: Boolean(enabled && activeSession),
       taskTitle: activeSession?.taskTitle || '',
@@ -503,7 +504,6 @@ function TaskMateProvider({ children }) {
     loading,
     notificationTaskId,
     openAccessibilitySettings: focusNativeModule.openAccessibilitySettings,
-    openUsageAccessSettings: focusNativeModule.openUsageAccessSettings,
     progress,
     refreshFocusPermissions,
     requestNotifications,

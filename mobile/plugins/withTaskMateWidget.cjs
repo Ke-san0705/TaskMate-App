@@ -27,6 +27,14 @@ const LAUNCHER_MIPMAP_NAMES = [
   'ic_launcher_round'
 ];
 
+const REMOVED_PERMISSIONS = [
+  'android.permission.SYSTEM_ALERT_WINDOW',
+  'android.permission.RECORD_AUDIO',
+  'android.permission.WRITE_EXTERNAL_STORAGE',
+  'android.permission.CAMERA',
+  'android.permission.PACKAGE_USAGE_STATS'
+];
+
 const STRINGS = {
   taskmate_widget_character: 'TaskMate character',
   taskmate_widget_count_default: '今日 0',
@@ -99,6 +107,11 @@ function removePermission(androidManifest, name) {
   );
 }
 
+function upsertRemovedPermission(androidManifest, name) {
+  removePermission(androidManifest, name);
+  upsertPermission(androidManifest, name, { 'tools:node': 'remove' });
+}
+
 function ensureLauncherQuery(androidManifest) {
   const root = androidManifest.manifest;
   root.queries = root.queries || [{}];
@@ -126,13 +139,9 @@ function upsertByName(items, next) {
 }
 
 function addNativeEntries(androidManifest) {
-  removePermission(androidManifest, 'android.permission.SYSTEM_ALERT_WINDOW');
-  removePermission(androidManifest, 'android.permission.RECORD_AUDIO');
-  removePermission(androidManifest, 'android.permission.READ_EXTERNAL_STORAGE');
-  removePermission(androidManifest, 'android.permission.WRITE_EXTERNAL_STORAGE');
-  upsertPermission(androidManifest, 'android.permission.PACKAGE_USAGE_STATS', {
-    'tools:ignore': 'ProtectedPermissions'
-  });
+  for (const permission of REMOVED_PERMISSIONS) {
+    upsertRemovedPermission(androidManifest, permission);
+  }
   upsertPermission(androidManifest, 'android.permission.RECEIVE_BOOT_COMPLETED');
   ensureLauncherQuery(androidManifest);
 
@@ -351,6 +360,25 @@ function writeNativeSource(javaRoot, fileName, source) {
   writeFileIfChanged(path.join(javaRoot, fileName), source);
 }
 
+function ensureRawManifestPermissionRemovals(manifestPath) {
+  if (!fs.existsSync(manifestPath)) {
+    return;
+  }
+  let source = fs.readFileSync(manifestPath, 'utf8');
+  for (const permission of REMOVED_PERMISSIONS) {
+    const pattern = new RegExp(
+      `\\n?\\s*<uses-permission\\b(?=[^>]*android:name="${permission.replace(/\./g, '\\.')}")[^>]*/>`,
+      'g'
+    );
+    source = source.replace(pattern, '');
+  }
+  const removalLines = REMOVED_PERMISSIONS.map(
+    (permission) => `  <uses-permission android:name="${permission}" tools:node="remove"/>`
+  ).join('\n');
+  source = source.replace(/(<manifest\b[^>]*>)/, `$1\n${removalLines}`);
+  writeFileIfChanged(manifestPath, source);
+}
+
 function upsertGradleProperty(filePath, key, value) {
   const line = `${key}=${value}`;
   const source = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : '';
@@ -380,14 +408,41 @@ function patchBuildGradle(filePath) {
     return;
   }
   let source = fs.readFileSync(filePath, 'utf8');
-  const uploadSigningVars = `def taskMateUploadStoreFile = findProperty('TASKMATE_UPLOAD_STORE_FILE') ?: System.getenv('TASKMATE_UPLOAD_STORE_FILE')
-def taskMateUploadStorePassword = findProperty('TASKMATE_UPLOAD_STORE_PASSWORD') ?: System.getenv('TASKMATE_UPLOAD_STORE_PASSWORD')
-def taskMateUploadKeyAlias = findProperty('TASKMATE_UPLOAD_KEY_ALIAS') ?: System.getenv('TASKMATE_UPLOAD_KEY_ALIAS')
-def taskMateUploadKeyPassword = findProperty('TASKMATE_UPLOAD_KEY_PASSWORD') ?: System.getenv('TASKMATE_UPLOAD_KEY_PASSWORD')
+  const uploadSigningVars = `def taskMateUploadSigningProperties = new Properties()
+def taskMateUploadSigningPropertiesFile = rootProject.file('taskmate-upload-key.properties')
+if (taskMateUploadSigningPropertiesFile.exists()) {
+    taskMateUploadSigningPropertiesFile.withInputStream { taskMateUploadSigningProperties.load(it) }
+}
+def taskMateUploadStoreFile = findProperty('TASKMATE_UPLOAD_STORE_FILE') ?: System.getenv('TASKMATE_UPLOAD_STORE_FILE') ?: taskMateUploadSigningProperties['storeFile']
+def taskMateUploadStorePassword = findProperty('TASKMATE_UPLOAD_STORE_PASSWORD') ?: System.getenv('TASKMATE_UPLOAD_STORE_PASSWORD') ?: taskMateUploadSigningProperties['storePassword']
+def taskMateUploadKeyAlias = findProperty('TASKMATE_UPLOAD_KEY_ALIAS') ?: System.getenv('TASKMATE_UPLOAD_KEY_ALIAS') ?: taskMateUploadSigningProperties['keyAlias']
+def taskMateUploadKeyPassword = findProperty('TASKMATE_UPLOAD_KEY_PASSWORD') ?: System.getenv('TASKMATE_UPLOAD_KEY_PASSWORD') ?: taskMateUploadSigningProperties['keyPassword']
 def hasTaskMateUploadSigning = taskMateUploadStoreFile && taskMateUploadStorePassword && taskMateUploadKeyAlias && taskMateUploadKeyPassword
 `;
 
-  if (!source.includes('def taskMateUploadStoreFile')) {
+  const legacyUploadStart = source.indexOf('def taskMateUploadStoreFile');
+  const currentUploadStart = source.indexOf('def taskMateUploadSigningProperties');
+  const uploadStart =
+    currentUploadStart >= 0
+      ? currentUploadStart
+      : legacyUploadStart >= 0
+        ? legacyUploadStart
+        : -1;
+  if (uploadStart >= 0) {
+    const uploadEndLine =
+      'def hasTaskMateUploadSigning = taskMateUploadStoreFile && taskMateUploadStorePassword && taskMateUploadKeyAlias && taskMateUploadKeyPassword';
+    const uploadEnd = source.indexOf(uploadEndLine, uploadStart);
+    if (uploadEnd < 0) {
+      throw new Error('Could not find TaskMate upload signing block end in Android build.gradle.');
+    }
+    let afterUploadEnd = uploadEnd + uploadEndLine.length;
+    if (source.slice(afterUploadEnd, afterUploadEnd + 2) === '\r\n') {
+      afterUploadEnd += 2;
+    } else if (source[afterUploadEnd] === '\n') {
+      afterUploadEnd += 1;
+    }
+    source = `${source.slice(0, uploadStart)}${uploadSigningVars}${source.slice(afterUploadEnd)}`;
+  } else {
     const marker =
       "def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: false).toBoolean()\n";
     if (!source.includes(marker)) {
@@ -491,6 +546,7 @@ function withTaskMateWidget(config) {
         'wait.png'
       );
 
+      ensureRawManifestPermissionRemovals(path.join(mainRoot, 'AndroidManifest.xml'));
       upsertGradleProperty(
         path.join(androidRoot, 'gradle.properties'),
         'android.enableMinifyInReleaseBuilds',

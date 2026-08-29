@@ -14,6 +14,10 @@ const ErrorBanner = require('../components/ErrorBanner');
 const JapaneseTextInput = require('../components/JapaneseTextInput');
 const { useTaskMate } = require('../context/TaskMateContext');
 const { ROUTES } = require('../constants/routes');
+const {
+  ACCESSIBILITY_DISCLOSURE,
+  hasAcceptedAccessibilityDisclosure
+} = require('../constants/focusDisclosure');
 const { FALLBACK_BLOCKED_APPS } = require('../services/focusNativeModule');
 const { formatTaskTime } = require('../utils/localDate');
 const { colors, radius, shadows, spacing, typography } = require('../theme/taskMateTheme');
@@ -46,7 +50,6 @@ function FocusSetupScreen({ navigation, route }) {
     installedApps,
     loadInstalledApps,
     openAccessibilitySettings,
-    openUsageAccessSettings,
     refreshFocusPermissions,
     setError,
     settings,
@@ -74,13 +77,23 @@ function FocusSetupScreen({ navigation, route }) {
     () => new Set(selectedApps.map((app) => app.packageName)),
     [selectedApps]
   );
+  const disclosureAccepted = hasAcceptedAccessibilityDisclosure(settings);
+  const [consentChecked, setConsentChecked] = React.useState(disclosureAccepted);
 
   React.useEffect(() => {
-    loadInstalledApps().catch((loadError) => setError(String(loadError.message || loadError)));
+    if (disclosureAccepted) {
+      loadInstalledApps().catch((loadError) => setError(String(loadError.message || loadError)));
+    }
     refreshFocusPermissions().catch((permissionError) =>
       setError(String(permissionError.message || permissionError))
     );
-  }, [loadInstalledApps, refreshFocusPermissions, setError]);
+  }, [disclosureAccepted, loadInstalledApps, refreshFocusPermissions, setError]);
+
+  React.useEffect(() => {
+    if (disclosureAccepted) {
+      setConsentChecked(true);
+    }
+  }, [disclosureAccepted]);
 
   React.useEffect(() => {
     if (!selectedTaskId && incompleteTasks[0]?.id) {
@@ -90,14 +103,14 @@ function FocusSetupScreen({ navigation, route }) {
 
   const appChoices = React.useMemo(() => {
     const normalizedFilter = appFilter.trim().toLowerCase();
-    return mergeApps(selectedApps, installedApps, FALLBACK_BLOCKED_APPS)
+    return mergeApps(selectedApps, disclosureAccepted ? installedApps : [], FALLBACK_BLOCKED_APPS)
       .filter((app) =>
         normalizedFilter
           ? `${app.appName} ${app.packageName}`.toLowerCase().includes(normalizedFilter)
           : true
       )
       .slice(0, 80);
-  }, [appFilter, installedApps, selectedApps]);
+  }, [appFilter, disclosureAccepted, installedApps, selectedApps]);
 
   async function createQuickTask() {
     const title = newTaskTitle.trim();
@@ -132,8 +145,33 @@ function FocusSetupScreen({ navigation, route }) {
       Alert.alert('タスクを選んでください', '集中するタスクを1件選びます。');
       return;
     }
+    if (
+      settings?.focusRestrictionEnabled !== false &&
+      selectedApps.length > 0 &&
+      !disclosureAccepted
+    ) {
+      Alert.alert(
+        '同意が必要です',
+        'アプリ制限を使うには、ユーザー補助の利用説明を確認して同意してください。'
+      );
+      return;
+    }
     await startFocusSession(selectedTaskId, selectedApps);
     navigation.navigate(ROUTES.Tabs, { screen: ROUTES.Home });
+  }
+
+  async function acceptAndOpenAccessibility() {
+    if (!disclosureAccepted && !consentChecked) {
+      Alert.alert('確認してください', ACCESSIBILITY_DISCLOSURE.consentLabel);
+      return;
+    }
+    if (!disclosureAccepted) {
+      await updateSettings({
+        focusAccessibilityDisclosureAcceptedAt: new Date().toISOString()
+      });
+      await loadInstalledApps();
+    }
+    await openAccessibilitySettings();
   }
 
   return (
@@ -241,32 +279,44 @@ function FocusSetupScreen({ navigation, route }) {
           </View>
           <View style={styles.permissionRow}>
             <View style={styles.choiceText}>
-              <Text style={styles.choiceTitle}>ユーザー補助</Text>
+              <Text style={styles.choiceTitle}>{ACCESSIBILITY_DISCLOSURE.title}</Text>
+              {ACCESSIBILITY_DISCLOSURE.paragraphs.map((paragraph) => (
+                <Text key={paragraph} style={styles.disclosureText}>
+                  {paragraph}
+                </Text>
+              ))}
+            </View>
+          </View>
+          {disclosureAccepted ? (
+            <Text style={styles.acceptedText}>同意済みです。必要なときだけ設定を開けます。</Text>
+          ) : (
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: consentChecked }}
+              accessibilityLabel={ACCESSIBILITY_DISCLOSURE.consentLabel}
+              style={styles.consentRow}
+              onPress={() => setConsentChecked((current) => !current)}
+            >
+              <View style={[styles.checkbox, consentChecked && styles.checkboxSelected]}>
+                {consentChecked ? <Text style={styles.checkboxText}>✓</Text> : null}
+              </View>
+              <Text style={styles.consentText}>{ACCESSIBILITY_DISCLOSURE.consentLabel}</Text>
+            </Pressable>
+          )}
+          <View style={styles.permissionRow}>
+            <View style={styles.choiceText}>
+              <Text style={styles.choiceTitle}>ユーザー補助サービス</Text>
               <Text style={styles.choiceMeta}>
                 {focusPermissions.accessibility ? '有効です' : '対象アプリの検知に必要です'}
               </Text>
             </View>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="ユーザー補助設定を開く"
+              accessibilityLabel={
+                disclosureAccepted ? 'ユーザー補助設定を開く' : '同意してユーザー補助設定を開く'
+              }
               style={styles.secondaryButton}
-              onPress={openAccessibilitySettings}
-            >
-              <Text style={styles.secondaryText}>設定</Text>
-            </Pressable>
-          </View>
-          <View style={styles.permissionRow}>
-            <View style={styles.choiceText}>
-              <Text style={styles.choiceTitle}>使用状況へのアクセス</Text>
-              <Text style={styles.choiceMeta}>
-                {focusPermissions.usageAccess ? '有効です' : '制限方式の補助に使います'}
-              </Text>
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="使用状況へのアクセス設定を開く"
-              style={styles.secondaryButton}
-              onPress={openUsageAccessSettings}
+              onPress={acceptAndOpenAccessibility}
             >
               <Text style={styles.secondaryText}>設定</Text>
             </Pressable>
@@ -420,6 +470,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10
+  },
+  disclosureText: {
+    marginTop: 8,
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 20
+  },
+  consentRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 10,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.cardSoft
+  },
+  consentText: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 19
+  },
+  acceptedText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 19
   },
   primaryButton: {
     minHeight: 52,

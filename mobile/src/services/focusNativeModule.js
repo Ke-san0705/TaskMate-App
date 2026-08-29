@@ -45,19 +45,6 @@ async function openAccessibilitySettings() {
   }
 }
 
-async function isUsageAccessGranted() {
-  if (!isAvailable() || typeof native.isUsageAccessGranted !== 'function') {
-    return false;
-  }
-  return Boolean(await native.isUsageAccessGranted());
-}
-
-async function openUsageAccessSettings() {
-  if (isAvailable() && typeof native.openUsageAccessSettings === 'function') {
-    await native.openUsageAccessSettings();
-  }
-}
-
 async function setFocusMonitorState({ active, taskTitle = '', blockedApps = [] }) {
   if (!isAvailable() || typeof native.setFocusMonitorState !== 'function') {
     return false;
@@ -80,10 +67,8 @@ async function updateWidget() {
 module.exports = {
   FALLBACK_BLOCKED_APPS,
   isAccessibilityServiceEnabled,
-  isUsageAccessGranted,
   listInstalledApps,
   openAccessibilitySettings,
-  openUsageAccessSettings,
   setFocusMonitorState,
   updateWidget
 };

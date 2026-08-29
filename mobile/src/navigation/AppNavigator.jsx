@@ -1,4 +1,5 @@
 const React = require('react');
+const { Linking } = require('react-native');
 const {
   NavigationContainer,
   createNavigationContainerRef
@@ -9,6 +10,7 @@ const HomeScreen = require('../screens/HomeScreen');
 const TasksScreen = require('../screens/TasksScreen');
 const TaskEditScreen = require('../screens/TaskEditScreen');
 const FocusSetupScreen = require('../screens/FocusSetupScreen');
+const FocusBlockedScreen = require('../screens/FocusBlockedScreen');
 const CharactersScreen = require('../screens/CharactersScreen');
 const CharacterEditScreen = require('../screens/CharacterEditScreen');
 const SettingsScreen = require('../screens/SettingsScreen');
@@ -20,6 +22,28 @@ const { colors, radius } = require('../theme/taskMateTheme');
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 const navigationRef = createNavigationContainerRef();
+
+function getFocusBlockedPackage(url) {
+  const match = String(url || '').match(/[?&]package=([^&]+)/);
+  return match ? decodeURIComponent(match[1].replace(/\+/g, '%20')) : '';
+}
+
+function isFocusBlockedUrl(url) {
+  return String(url || '').startsWith('taskmate://focus-blocked');
+}
+
+function navigateToFocusBlocked(url) {
+  const navigate = () => {
+    navigationRef.navigate(ROUTES.FocusBlocked, {
+      packageName: getFocusBlockedPackage(url)
+    });
+  };
+  if (navigationRef.isReady()) {
+    navigate();
+  } else {
+    setTimeout(navigate, 250);
+  }
+}
 
 function icon(name) {
   return ({ color, focused }) => (
@@ -89,10 +113,34 @@ function NotificationBridge() {
   return null;
 }
 
+function FocusLinkBridge() {
+  React.useEffect(() => {
+    let mounted = true;
+    Linking.getInitialURL()
+      .then((url) => {
+        if (mounted && isFocusBlockedUrl(url)) {
+          navigateToFocusBlocked(url);
+        }
+      })
+      .catch(() => {});
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      if (isFocusBlockedUrl(url)) {
+        navigateToFocusBlocked(url);
+      }
+    });
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
+  return null;
+}
+
 function AppNavigator() {
   return (
     <NavigationContainer ref={navigationRef}>
       <NotificationBridge />
+      <FocusLinkBridge />
       <Stack.Navigator>
         <Stack.Screen
           name={ROUTES.Tabs}
@@ -108,6 +156,11 @@ function AppNavigator() {
           name={ROUTES.FocusSetup}
           component={FocusSetupScreen}
           options={{ title: '集中を始める' }}
+        />
+        <Stack.Screen
+          name={ROUTES.FocusBlocked}
+          component={FocusBlockedScreen}
+          options={{ title: '集中中' }}
         />
         <Stack.Screen
           name={ROUTES.CharacterEdit}

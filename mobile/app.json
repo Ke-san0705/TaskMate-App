@@ -16,8 +16,14 @@
       "versionCode": 20,
       "permissions": [
         "POST_NOTIFICATIONS",
-        "PACKAGE_USAGE_STATS",
         "RECEIVE_BOOT_COMPLETED"
+      ],
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.CAMERA",
+        "android.permission.PACKAGE_USAGE_STATS"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#F3F8F1",
@@ -30,7 +36,6 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "./plugins/withTaskMateWidget.cjs",
       "expo-sqlite",
       [
         "expo-notifications",
@@ -43,7 +48,8 @@
         {
           "photosPermission": "キャラクター画像を選ぶときだけ写真ライブラリを使用します。"
         }
-      ]
+      ],
+      "./plugins/withTaskMateWidget.cjs"
     ]
   }
 }
