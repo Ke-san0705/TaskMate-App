@@ -27,6 +27,9 @@ function TaskCard({ task, focusTaskId, onComplete, onUndo, onDelete, onEdit, onF
         <Text style={[styles.badge, styles[`badge_${state}`]]}>{STATE_LABELS[state]}</Text>
       </View>
       {task.description ? <Text style={styles.description}>{task.description}</Text> : null}
+      {task.source === 'project' && task.projectName ? (
+        <Text style={styles.projectLink}>長期タスク: {task.projectName}</Text>
+      ) : null}
       <View style={styles.actions}>
         {task.completed ? (
           <Pressable
@@ -132,6 +135,11 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 14,
     lineHeight: 20
+  },
+  projectLink: {
+    color: colors.primaryDark,
+    fontSize: 13,
+    fontWeight: '900'
   },
   badge: {
     alignSelf: 'flex-start',

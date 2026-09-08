@@ -11,6 +11,7 @@ const { clearDatabaseForReset, getDatabase } = require('../repositories/database
 const taskRepository = require('../repositories/taskRepository');
 const settingsRepository = require('../repositories/settingsRepository');
 const focusRepository = require('../repositories/focusRepository');
+const projectRepository = require('../repositories/projectRepository');
 const lifeStateRepository = require('../repositories/lifeStateRepository');
 const characterRepository = require('../repositories/characterRepository');
 const notificationService = require('../services/notificationService');
@@ -66,6 +67,13 @@ function TaskMateProvider({ children }) {
     activeSession: null,
     blockedApps: []
   });
+  const [projectState, setProjectState] = React.useState({
+    categories: [],
+    projects: [],
+    milestones: [],
+    projectTasks: [],
+    error: null
+  });
   const [characters, setCharacters] = React.useState([]);
   const [selectedCharacter, setSelectedCharacter] = React.useState(null);
   const [undoItem, setUndoItem] = React.useState(null);
@@ -110,6 +118,31 @@ function TaskMateProvider({ children }) {
       blockedApps: activeSession?.blockedApps || []
     });
     await focusNativeModule.updateWidget();
+  }, []);
+
+  const refreshProjectState = React.useCallback(async () => {
+    try {
+      const state = await projectRepository.listProjectState();
+      setProjectState(state);
+      return state;
+    } catch (projectError) {
+      const message = messageFromError(projectError, '長期タスクを読み込めませんでした。');
+      setProjectState({
+        categories: [],
+        projects: [],
+        milestones: [],
+        projectTasks: [],
+        error: message
+      });
+      warn('Projects', 'refresh failed', projectError);
+      return {
+        categories: [],
+        projects: [],
+        milestones: [],
+        projectTasks: [],
+        error: message
+      };
+    }
   }, []);
 
   React.useEffect(() => {
@@ -210,6 +243,7 @@ function TaskMateProvider({ children }) {
       await notificationService.configureNotifications();
       await Promise.all([loadCharacters(), loadInstalledApps(), refreshFocusPermissions()]);
       const result = await refreshTasksAndFocus({ migrateLegacyFocus: true });
+      await refreshProjectState();
       await notificationService.reconcileNotifications(
         result.loadedTasks,
         result.loadedSettings,
@@ -222,7 +256,13 @@ function TaskMateProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [loadCharacters, loadInstalledApps, refreshFocusPermissions, refreshTasksAndFocus]);
+  }, [
+    loadCharacters,
+    loadInstalledApps,
+    refreshFocusPermissions,
+    refreshProjectState,
+    refreshTasksAndFocus
+  ]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -238,6 +278,7 @@ function TaskMateProvider({ children }) {
         loadInstalledApps().catch((appsError) => {
           setError(messageFromError(appsError));
         });
+        refreshProjectState();
       }
     });
     const notificationSubscription = notificationService.addNotificationResponseListener(
@@ -253,7 +294,13 @@ function TaskMateProvider({ children }) {
       appStateSubscription.remove();
       notificationSubscription.remove();
     };
-  }, [initialize, loadInstalledApps, refreshFocusPermissions, refreshTasksAndFocus]);
+  }, [
+    initialize,
+    loadInstalledApps,
+    refreshFocusPermissions,
+    refreshProjectState,
+    refreshTasksAndFocus
+  ]);
 
   async function createTask(input) {
     try {
@@ -269,7 +316,11 @@ function TaskMateProvider({ children }) {
   async function updateTask(taskId, input) {
     try {
       const task = await taskRepository.updateTask(taskId, input);
+      if (task.projectTaskId) {
+        await projectRepository.updateProjectTaskFromNormalTask(task);
+      }
       await refreshTasksAndFocus();
+      await refreshProjectState();
       return task;
     } catch (actionError) {
       setError(messageFromError(actionError));
@@ -280,8 +331,12 @@ function TaskMateProvider({ children }) {
   async function deleteTask(taskId) {
     try {
       const task = await taskRepository.deleteTask(taskId);
+      if (task.projectTaskId) {
+        await projectRepository.unlinkNormalTask(task.id);
+      }
       await focusRepository.clearTaskReferences(taskId);
       await refreshTasksAndFocus();
+      await refreshProjectState();
       return task;
     } catch (actionError) {
       setError(messageFromError(actionError));
@@ -293,6 +348,9 @@ function TaskMateProvider({ children }) {
     try {
       const beforeTasks = await taskRepository.listTasks();
       const task = await taskRepository.setTaskCompleted(taskId, true);
+      if (task.projectTaskId) {
+        await projectRepository.setProjectTaskCompletedFromNormal(task.projectTaskId, true);
+      }
       const active = focusState.activeSession;
       if (active?.taskId === taskId) {
         await focusRepository.finishSession(active.id, true);
@@ -312,6 +370,7 @@ function TaskMateProvider({ children }) {
       );
       setUndoItem({ task, expiresAt: Date.now() + 5000 });
       await refreshTasksAndFocus();
+      await refreshProjectState();
       return task;
     } catch (actionError) {
       setError(messageFromError(actionError));
@@ -322,8 +381,12 @@ function TaskMateProvider({ children }) {
   async function undoCompleteTask(taskId) {
     try {
       const task = await taskRepository.setTaskCompleted(taskId, false);
+      if (task.projectTaskId) {
+        await projectRepository.setProjectTaskCompletedFromNormal(task.projectTaskId, false);
+      }
       setUndoItem(null);
       await refreshTasksAndFocus();
+      await refreshProjectState();
       return task;
     } catch (actionError) {
       setError(messageFromError(actionError));
@@ -404,6 +467,62 @@ function TaskMateProvider({ children }) {
     setSettings(next);
     await refreshTasksAndFocus();
     return next;
+  }
+
+  async function runProjectAction(action) {
+    try {
+      const result = await action();
+      await refreshProjectState();
+      await refreshTasksAndFocus();
+      return result;
+    } catch (actionError) {
+      setError(messageFromError(actionError));
+      throw actionError;
+    }
+  }
+
+  function createProject(input) {
+    return runProjectAction(() => projectRepository.createProject(input));
+  }
+
+  function updateProject(projectId, input) {
+    return runProjectAction(() => projectRepository.updateProject(projectId, input));
+  }
+
+  function deleteProject(projectId) {
+    return runProjectAction(() => projectRepository.deleteProject(projectId));
+  }
+
+  function createProjectMilestone(input) {
+    return runProjectAction(() => projectRepository.createMilestone(input));
+  }
+
+  function updateProjectMilestone(milestoneId, input) {
+    return runProjectAction(() => projectRepository.updateMilestone(milestoneId, input));
+  }
+
+  function deleteProjectMilestone(milestoneId) {
+    return runProjectAction(() => projectRepository.deleteMilestone(milestoneId));
+  }
+
+  function createProjectTask(input) {
+    return runProjectAction(() => projectRepository.createProjectTask(input));
+  }
+
+  function updateProjectTask(taskId, input) {
+    return runProjectAction(() => projectRepository.updateProjectTask(taskId, input));
+  }
+
+  function deleteProjectTask(taskId) {
+    return runProjectAction(() => projectRepository.deleteProjectTask(taskId));
+  }
+
+  function completeProjectTask(taskId, completed) {
+    return runProjectAction(() => projectRepository.completeProjectTask(taskId, completed));
+  }
+
+  function addProjectTaskToToday(taskId) {
+    return runProjectAction(() => projectRepository.addProjectTaskToToday(taskId));
   }
 
   async function requestNotifications() {
@@ -488,9 +607,15 @@ function TaskMateProvider({ children }) {
     completeTask,
     consumeNotificationTask,
     createCustomCharacter,
+    createProject,
+    createProjectMilestone,
+    createProjectTask,
     createTask,
     deleteAllLocalData,
     deleteCustomCharacter,
+    deleteProject,
+    deleteProjectMilestone,
+    deleteProjectTask,
     deleteTask,
     dialogue,
     error,
@@ -506,7 +631,9 @@ function TaskMateProvider({ children }) {
     notificationTaskId,
     openAccessibilitySettings: focusNativeModule.openAccessibilitySettings,
     progress,
+    projectState,
     refreshFocusPermissions,
+    refreshProjectState,
     requestNotifications,
     selectCharacter,
     selectedCharacter,
@@ -518,10 +645,15 @@ function TaskMateProvider({ children }) {
     tasks,
     undoCompleteTask,
     undoItem,
+    addProjectTaskToToday,
+    completeProjectTask,
     updateBlockedApps,
     updateCustomCharacterDialogues,
     updateCustomCharacterImage,
     updateCustomCharacterProfile,
+    updateProject,
+    updateProjectMilestone,
+    updateProjectTask,
     updateSettings,
     updateTask
   };

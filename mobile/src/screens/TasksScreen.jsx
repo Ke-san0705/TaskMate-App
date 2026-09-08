@@ -4,6 +4,7 @@ const { SafeAreaView } = require('react-native-safe-area-context');
 const EmptyState = require('../components/EmptyState');
 const ErrorBanner = require('../components/ErrorBanner');
 const JapaneseTextInput = require('../components/JapaneseTextInput');
+const LongTermTasksPanel = require('../components/LongTermTasksPanel');
 const TaskCard = require('../components/TaskCard');
 const { useTaskMate } = require('../context/TaskMateContext');
 const { ROUTES } = require('../constants/routes');
@@ -36,6 +37,7 @@ function TasksScreen({ navigation }) {
     undoCompleteTask
   } = useTaskMate();
   const [filter, setFilter] = React.useState('');
+  const [mode, setMode] = React.useState('tasks');
   const normalizedFilter = filter.trim().toLowerCase();
 
   function visible(items) {
@@ -63,14 +65,38 @@ function TasksScreen({ navigation }) {
             <Text style={styles.eyebrow}>TASKS</Text>
             <Text style={styles.title}>タスク</Text>
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="タスクを追加する"
-            style={styles.addButton}
-            onPress={() => navigation.navigate(ROUTES.TaskEdit)}
-          >
-            <Text style={styles.addText}>追加</Text>
-          </Pressable>
+          {mode === 'tasks' ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="タスクを追加する"
+              style={styles.addButton}
+              onPress={() => navigation.navigate(ROUTES.TaskEdit)}
+            >
+              <Text style={styles.addText}>追加</Text>
+            </Pressable>
+          ) : null}
+        </View>
+
+        <View style={styles.modeSwitch}>
+          {[
+            ['tasks', '通常タスク'],
+            ['projects', '長期タスク']
+          ].map(([value, label]) => {
+            const active = mode === value;
+            return (
+              <Pressable
+                key={value}
+                accessibilityRole="button"
+                accessibilityLabel={`${label}を表示する`}
+                onPress={() => setMode(value)}
+                style={[styles.modeButton, active && styles.modeButtonActive]}
+              >
+                <Text style={[styles.modeText, active && styles.modeTextActive]}>
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         <JapaneseTextInput
@@ -81,29 +107,33 @@ function TasksScreen({ navigation }) {
           style={styles.search}
         />
 
-        {sections.map(([title, items]) => (
-          <Section key={title} title={title} tasks={items}>
-            <View style={styles.list}>
-              {items.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  focusTaskId={focusState?.currentTaskId}
-                  onComplete={completeTask}
-                  onUndo={undoCompleteTask}
-                  onDelete={deleteTask}
-                  onFocus={setFocusTask}
-                  onStartFocus={(selected) =>
-                    navigation.navigate(ROUTES.FocusSetup, { taskId: selected.id })
-                  }
-                  onEdit={(selected) =>
-                    navigation.navigate(ROUTES.TaskEdit, { taskId: selected.id })
-                  }
-                />
-              ))}
-            </View>
-          </Section>
-        ))}
+        {mode === 'tasks' ? (
+          sections.map(([title, items]) => (
+            <Section key={title} title={title} tasks={items}>
+              <View style={styles.list}>
+                {items.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    focusTaskId={focusState?.currentTaskId}
+                    onComplete={completeTask}
+                    onUndo={undoCompleteTask}
+                    onDelete={deleteTask}
+                    onFocus={setFocusTask}
+                    onStartFocus={(selected) =>
+                      navigation.navigate(ROUTES.FocusSetup, { taskId: selected.id })
+                    }
+                    onEdit={(selected) =>
+                      navigation.navigate(ROUTES.TaskEdit, { taskId: selected.id })
+                    }
+                  />
+                ))}
+              </View>
+            </Section>
+          ))
+        ) : (
+          <LongTermTasksPanel navigation={navigation} taskFilter={filter} />
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -139,6 +169,30 @@ const styles = StyleSheet.create({
   addText: {
     color: '#FFFFFF',
     fontWeight: '900'
+  },
+  modeSwitch: {
+    flexDirection: 'row',
+    padding: 4,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card
+  },
+  modeButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: radius.sm
+  },
+  modeButtonActive: {
+    backgroundColor: colors.primary
+  },
+  modeText: {
+    color: colors.primary,
+    fontWeight: '900'
+  },
+  modeTextActive: {
+    color: colors.white
   },
   search: {
     minHeight: 46,
