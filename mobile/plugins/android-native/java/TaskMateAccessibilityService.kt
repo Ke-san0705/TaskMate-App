@@ -22,13 +22,8 @@ class TaskMateAccessibilityService : AccessibilityService() {
     if (packageName == this.packageName) {
       return
     }
-    val prefs = getSharedPreferences(TaskMateFocusModule.FOCUS_PREFS, Context.MODE_PRIVATE)
-    if (!prefs.getBoolean(TaskMateFocusModule.KEY_ACTIVE, false)) {
-      return
-    }
-    val blocked = prefs.getStringSet(TaskMateFocusModule.KEY_BLOCKED_PACKAGES, emptySet())
-      ?: emptySet()
-    if (!blocked.contains(packageName)) {
+    val decision = TaskMateRestrictionPolicy.evaluate(this, packageName) ?: return
+    if (decision.reason.isBlank()) {
       return
     }
     val now = System.currentTimeMillis()
@@ -36,13 +31,13 @@ class TaskMateAccessibilityService : AccessibilityService() {
       return
     }
     lastInterventionAt = now
-    openBlockedScreen(packageName)
-    showFocusNotification()
+    openBlockedScreen(packageName, decision.reason)
+    showRestrictionNotification(decision.reason)
   }
 
   override fun onInterrupt() = Unit
 
-  private fun openBlockedScreen(blockedPackageName: String) {
+  private fun openBlockedScreen(blockedPackageName: String, reason: String) {
     try {
       val intent = Intent(this, FocusBlockedActivity::class.java).apply {
         addFlags(
@@ -51,19 +46,22 @@ class TaskMateAccessibilityService : AccessibilityService() {
             Intent.FLAG_ACTIVITY_NO_ANIMATION
         )
         putExtra(FocusBlockedActivity.EXTRA_PACKAGE_NAME, blockedPackageName)
+        putExtra(FocusBlockedActivity.EXTRA_REASON, reason)
       }
       startActivity(intent)
     } catch (_: Throwable) {
       performGlobalAction(GLOBAL_ACTION_BACK)
-      openTaskMate(blockedPackageName)
+      openTaskMate(blockedPackageName, reason)
     }
   }
 
-  private fun openTaskMate(blockedPackageName: String) {
+  private fun openTaskMate(blockedPackageName: String, reason: String) {
     try {
       val intent = Intent(
         Intent.ACTION_VIEW,
-        Uri.parse("taskmate://focus-blocked?package=${Uri.encode(blockedPackageName)}")
+        Uri.parse(
+          "taskmate://focus-blocked?package=${Uri.encode(blockedPackageName)}&reason=${Uri.encode(reason)}"
+        )
       )
       intent.setPackage(this.packageName)
       intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -73,11 +71,16 @@ class TaskMateAccessibilityService : AccessibilityService() {
     }
   }
 
-  private fun showFocusNotification() {
+  private fun showRestrictionNotification(reason: String) {
     val title = getSharedPreferences(TaskMateFocusModule.FOCUS_PREFS, Context.MODE_PRIVATE)
       .getString(TaskMateFocusModule.KEY_TASK_TITLE, "")
       .orEmpty()
       .ifBlank { "今やるタスク" }
+    val notificationText = if (reason == TaskMateRestrictionPolicy.REASON_UNLOCK) {
+      getString(R.string.taskmate_unlock_notification_body)
+    } else {
+      getString(R.string.taskmate_focus_notification_body, title)
+    }
     val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       manager.createNotificationChannel(
@@ -90,7 +93,7 @@ class TaskMateAccessibilityService : AccessibilityService() {
     }
     val launchIntent = Intent(
       Intent.ACTION_VIEW,
-      Uri.parse("taskmate://focus-blocked")
+      Uri.parse("taskmate://focus-blocked?reason=${Uri.encode(reason)}")
     ).apply {
       setPackage(packageName)
       addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -110,7 +113,7 @@ class TaskMateAccessibilityService : AccessibilityService() {
     val notification = builder
       .setSmallIcon(R.mipmap.ic_launcher)
       .setContentTitle(getString(R.string.taskmate_focus_notification_title))
-      .setContentText(getString(R.string.taskmate_focus_notification_body, title))
+      .setContentText(notificationText)
       .setContentIntent(pendingIntent)
       .setAutoCancel(true)
       .build()

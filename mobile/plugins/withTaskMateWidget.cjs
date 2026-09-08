@@ -31,8 +31,7 @@ const REMOVED_PERMISSIONS = [
   'android.permission.SYSTEM_ALERT_WINDOW',
   'android.permission.RECORD_AUDIO',
   'android.permission.WRITE_EXTERNAL_STORAGE',
-  'android.permission.CAMERA',
-  'android.permission.PACKAGE_USAGE_STATS'
+  'android.permission.CAMERA'
 ];
 
 const STRINGS = {
@@ -42,7 +41,7 @@ const STRINGS = {
   taskmate_widget_description: 'TaskMateの今日の予定をホーム画面に表示します',
   taskmate_accessibility_label: 'TaskMate アプリ制限',
   taskmate_accessibility_description:
-    '集中中にユーザーが選んだアプリの起動だけを検知し、TaskMateへ戻る案内を表示します。画面内容、入力内容、メッセージ内容は取得しません。',
+    '集中モードまたはアンロックモード中にユーザーが選んだ制限アプリの起動だけを検知し、TaskMateへ戻る案内を表示します。画面内容、入力内容、メッセージ内容は取得しません。',
   taskmate_focus_channel_name: 'TaskMate 集中',
   taskmate_focus_notification_title: '集中に戻りましょう',
   taskmate_focus_notification_body: '今は「%1$s」に取り組む時間です。',
@@ -53,7 +52,15 @@ const STRINGS = {
   taskmate_block_command: '持ち場に戻れ。\\nお前の居場所はここではない。',
   taskmate_block_mission_label: '現在の任務',
   taskmate_block_timer_label: '集中時間',
-  taskmate_block_return_button: 'TaskMateに戻る'
+  taskmate_block_return_button: 'TaskMateに戻る',
+  taskmate_unlock_notification_body: 'アンロック条件を達成するまで、このアプリは制限されています。',
+  taskmate_unlock_block_title: 'アンロックモード中',
+  taskmate_unlock_block_command: 'あと%1$d分、条件アプリを使うと%2$sを解放できます。',
+  taskmate_unlock_progress_label: '今日の進捗',
+  taskmate_unlock_progress_value: '%1$d / %2$d分',
+  taskmate_unlock_requirement_label: '条件アプリ',
+  taskmate_unlock_requirement_unknown: '設定した条件アプリ',
+  taskmate_unlock_open_requirement_button: '条件アプリを開く'
 };
 
 const PROGUARD_RULES = `
@@ -62,6 +69,9 @@ const PROGUARD_RULES = `
 -keep class com.taskmate.mobile.TaskMateFocusPackage { *; }
 -keep class com.taskmate.mobile.FocusBlockedActivity { *; }
 -keep class com.taskmate.mobile.TaskMateAccessibilityService { *; }
+-keep class com.taskmate.mobile.TaskMateRestrictionPolicy { *; }
+-keep class com.taskmate.mobile.BlockDecision { *; }
+-keep class com.taskmate.mobile.UnlockStatus { *; }
 -keep class com.taskmate.mobile.TaskMateWidgetProvider { *; }
 -keep class com.taskmate.mobile.TaskMateBootReceiver { *; }
 `;
@@ -152,6 +162,7 @@ function addNativeEntries(androidManifest) {
     upsertRemovedPermission(androidManifest, permission);
   }
   upsertPermission(androidManifest, 'android.permission.RECEIVE_BOOT_COMPLETED');
+  upsertPermission(androidManifest, 'android.permission.PACKAGE_USAGE_STATS');
   ensureLauncherQuery(androidManifest);
 
   const application = AndroidConfig.Manifest.getMainApplicationOrThrow(androidManifest);
@@ -603,6 +614,7 @@ function withTaskMateWidget(config) {
         'TaskMateBootReceiver.kt',
         'TaskMateFocusModule.kt',
         'TaskMateFocusPackage.kt',
+        'TaskMateRestrictionPolicy.kt',
         'TaskMateWidgetProvider.kt'
       ]) {
         const sourcePath = path.join(NATIVE_SOURCE_ROOT, fileName);

@@ -9,11 +9,17 @@ const {
 const { SafeAreaView } = require('react-native-safe-area-context');
 const { useTaskMate } = require('../context/TaskMateContext');
 const { ROUTES } = require('../constants/routes');
+const { minutesFromMillis } = require('../utils/unlockMode');
 const { colors, radius, spacing, typography } = require('../theme/taskMateTheme');
 
-function findBlockedAppName(activeSession, packageName) {
+function findBlockedAppName(activeSession, unlockMode, packageName) {
   const matched = activeSession?.blockedApps?.find((app) => app.packageName === packageName);
-  return matched?.appName || matched?.packageName || '制限対象アプリ';
+  const unlockMatched = unlockMode?.blockedApps?.find((app) => app.packageName === packageName);
+  return matched?.appName ||
+    unlockMatched?.appName ||
+    matched?.packageName ||
+    unlockMatched?.packageName ||
+    '制限対象アプリ';
 }
 
 function formatDuration(startedAt) {
@@ -29,15 +35,22 @@ function formatDuration(startedAt) {
 }
 
 function FocusBlockedScreen({ navigation, route }) {
-  const { focusState } = useTaskMate();
+  const { focusState, settings, unlockStatus } = useTaskMate();
   const activeSession = focusState.activeSession;
   const packageName = route.params?.packageName || '';
-  const appName = findBlockedAppName(activeSession, packageName);
+  const reason = route.params?.reason === 'unlock' ? 'unlock' : 'focus';
+  const appName = findBlockedAppName(activeSession, settings?.unlockMode, packageName);
   const [elapsed, setElapsed] = React.useState(() => formatDuration(activeSession?.startedAt));
+  const conditionApps = settings?.unlockMode?.requirementApps || [];
+  const totalMinutes = minutesFromMillis(unlockStatus?.totalUsageMillis || 0);
+  const requiredMinutes = Math.max(1, minutesFromMillis(unlockStatus?.requiredMillis || 0));
+  const remainingMinutes = Math.ceil(Math.max(0, unlockStatus?.remainingMillis || 0) / 60000);
 
   const returnToTaskMate = React.useCallback(() => {
-    navigation.navigate(ROUTES.Tabs, { screen: ROUTES.Home });
-  }, [navigation]);
+    navigation.navigate(ROUTES.Tabs, {
+      screen: reason === 'unlock' ? ROUTES.Settings : ROUTES.Home
+    });
+  }, [navigation, reason]);
 
   React.useEffect(() => {
     const timer = setInterval(() => {
@@ -59,7 +72,24 @@ function FocusBlockedScreen({ navigation, route }) {
       <View style={styles.container}>
         <Text style={styles.eyebrow}>TASKMATE</Text>
         <View style={styles.card}>
-          {activeSession ? (
+          {reason === 'unlock' ? (
+            <>
+              <Text style={styles.appName}>{appName}</Text>
+              <Text style={styles.blockedLabel}>アンロックモード中</Text>
+              <Text style={styles.command}>
+                あと{remainingMinutes}分、条件アプリを使うと{appName}を解放できます。
+              </Text>
+              <View style={styles.divider} />
+              <Text style={styles.label}>今日の進捗</Text>
+              <Text style={styles.timer}>{totalMinutes} / {requiredMinutes}分</Text>
+              <Text style={styles.label}>条件アプリ</Text>
+              <Text style={styles.taskTitle}>
+                {conditionApps.length > 0
+                  ? conditionApps.map((app) => app.appName).join(' / ')
+                  : '設定した条件アプリ'}
+              </Text>
+            </>
+          ) : activeSession ? (
             <>
               <Text style={styles.appName}>{appName}</Text>
               <Text style={styles.blockedLabel}>このアプリは現在制限されています。</Text>

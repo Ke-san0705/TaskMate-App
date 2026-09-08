@@ -10,6 +10,7 @@ const {
 } = require('react-native');
 const { SafeAreaView } = require('react-native-safe-area-context');
 const { localDateKey } = require('@taskmate/core');
+const AppSelectionList = require('../components/AppSelectionList');
 const ErrorBanner = require('../components/ErrorBanner');
 const JapaneseTextInput = require('../components/JapaneseTextInput');
 const { useTaskMate } = require('../context/TaskMateContext');
@@ -20,26 +21,8 @@ const {
 } = require('../constants/focusDisclosure');
 const { FALLBACK_BLOCKED_APPS } = require('../services/focusNativeModule');
 const { formatTaskTime } = require('../utils/localDate');
+const { mergeApps } = require('../utils/appSelection');
 const { colors, radius, shadows, spacing, typography } = require('../theme/taskMateTheme');
-
-function appKey(app) {
-  return app.packageName;
-}
-
-function mergeApps(...lists) {
-  const map = new Map();
-  for (const list of lists) {
-    for (const app of list || []) {
-      if (app?.packageName) {
-        map.set(app.packageName, {
-          packageName: app.packageName,
-          appName: app.appName || app.packageName
-        });
-      }
-    }
-  }
-  return [...map.values()].sort((left, right) => left.appName.localeCompare(right.appName, 'ja'));
-}
 
 function FocusSetupScreen({ navigation, route }) {
   const {
@@ -73,10 +56,6 @@ function FocusSetupScreen({ navigation, route }) {
     FALLBACK_BLOCKED_APPS
   );
   const [selectedApps, setSelectedApps] = React.useState(initialApps);
-  const selectedPackages = React.useMemo(
-    () => new Set(selectedApps.map((app) => app.packageName)),
-    [selectedApps]
-  );
   const disclosureAccepted = hasAcceptedAccessibilityDisclosure(settings);
   const [consentChecked, setConsentChecked] = React.useState(disclosureAccepted);
 
@@ -101,17 +80,6 @@ function FocusSetupScreen({ navigation, route }) {
     }
   }, [incompleteTasks, selectedTaskId]);
 
-  const appChoices = React.useMemo(() => {
-    const normalizedFilter = appFilter.trim().toLowerCase();
-    return mergeApps(selectedApps, disclosureAccepted ? installedApps : [], FALLBACK_BLOCKED_APPS)
-      .filter((app) =>
-        normalizedFilter
-          ? `${app.appName} ${app.packageName}`.toLowerCase().includes(normalizedFilter)
-          : true
-      )
-      .slice(0, 80);
-  }, [appFilter, disclosureAccepted, installedApps, selectedApps]);
-
   async function createQuickTask() {
     const title = newTaskTitle.trim();
     if (!title) {
@@ -127,17 +95,6 @@ function FocusSetupScreen({ navigation, route }) {
     });
     setSelectedTaskId(task.id);
     setNewTaskTitle('');
-  }
-
-  function toggleApp(app) {
-    setSelectedApps((current) => {
-      if (current.some((item) => item.packageName === app.packageName)) {
-        return current.filter((item) => item.packageName !== app.packageName);
-      }
-      return [...current, app].sort((left, right) =>
-        left.appName.localeCompare(right.appName, 'ja')
-      );
-    });
   }
 
   async function beginFocus() {
@@ -232,36 +189,17 @@ function FocusSetupScreen({ navigation, route }) {
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>制限するアプリ</Text>
-          <JapaneseTextInput
+          <AppSelectionList
             accessibilityLabel="制限するアプリを検索する"
-            value={appFilter}
-            onChangeText={setAppFilter}
+            apps={disclosureAccepted ? installedApps : []}
+            fallbackApps={FALLBACK_BLOCKED_APPS}
+            filter={appFilter}
+            onChangeFilter={setAppFilter}
+            onChangeSelectedApps={setSelectedApps}
             placeholder="Instagram、YouTubeなど"
-            style={styles.input}
+            selectedApps={selectedApps}
+            selectionLabel="制限対象"
           />
-          <View style={styles.appList}>
-            {appChoices.map((app) => {
-              const selected = selectedPackages.has(app.packageName);
-              return (
-                <Pressable
-                  key={appKey(app)}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: selected }}
-                  accessibilityLabel={`${app.appName}を制限対象にする`}
-                  style={[styles.appChoice, selected && styles.choiceSelected]}
-                  onPress={() => toggleApp(app)}
-                >
-                  <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
-                    {selected ? <Text style={styles.checkboxText}>✓</Text> : null}
-                  </View>
-                  <View style={styles.choiceText}>
-                    <Text style={styles.choiceTitle}>{app.appName}</Text>
-                    <Text style={styles.choiceMeta}>{app.packageName}</Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
         </View>
 
         <View style={styles.card}>
@@ -433,20 +371,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     backgroundColor: colors.card,
     fontSize: 15
-  },
-  appList: {
-    gap: 8
-  },
-  appChoice: {
-    minHeight: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    padding: 10,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.cardSoft
   },
   checkbox: {
     width: 28,

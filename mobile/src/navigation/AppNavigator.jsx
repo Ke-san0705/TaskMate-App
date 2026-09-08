@@ -28,6 +28,11 @@ function getFocusBlockedPackage(url) {
   return match ? decodeURIComponent(match[1].replace(/\+/g, '%20')) : '';
 }
 
+function getFocusBlockedReason(url) {
+  const match = String(url || '').match(/[?&]reason=([^&]+)/);
+  return match ? decodeURIComponent(match[1].replace(/\+/g, '%20')) : '';
+}
+
 function isFocusBlockedUrl(url) {
   return String(url || '').startsWith('taskmate://focus-blocked');
 }
@@ -36,10 +41,15 @@ function isFocusActiveUrl(url) {
   return String(url || '').startsWith('taskmate://focus-active');
 }
 
+function isUnlockModeUrl(url) {
+  return String(url || '').startsWith('taskmate://unlock-mode');
+}
+
 function navigateToFocusBlocked(url) {
   const navigate = () => {
     navigationRef.navigate(ROUTES.FocusBlocked, {
-      packageName: getFocusBlockedPackage(url)
+      packageName: getFocusBlockedPackage(url),
+      reason: getFocusBlockedReason(url)
     });
   };
   if (navigationRef.isReady()) {
@@ -52,6 +62,17 @@ function navigateToFocusBlocked(url) {
 function navigateToFocusActive() {
   const navigate = () => {
     navigationRef.navigate(ROUTES.Tabs, { screen: ROUTES.Home });
+  };
+  if (navigationRef.isReady()) {
+    navigate();
+  } else {
+    setTimeout(navigate, 250);
+  }
+}
+
+function navigateToUnlockMode() {
+  const navigate = () => {
+    navigationRef.navigate(ROUTES.Tabs, { screen: ROUTES.Settings });
   };
   if (navigationRef.isReady()) {
     navigate();
@@ -137,6 +158,8 @@ function FocusLinkBridge() {
           navigateToFocusBlocked(url);
         } else if (mounted && isFocusActiveUrl(url)) {
           navigateToFocusActive();
+        } else if (mounted && isUnlockModeUrl(url)) {
+          navigateToUnlockMode();
         }
       })
       .catch(() => {});
@@ -145,6 +168,8 @@ function FocusLinkBridge() {
         navigateToFocusBlocked(url);
       } else if (isFocusActiveUrl(url)) {
         navigateToFocusActive();
+      } else if (isUnlockModeUrl(url)) {
+        navigateToUnlockMode();
       }
     });
     return () => {

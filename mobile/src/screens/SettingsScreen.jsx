@@ -3,6 +3,7 @@ const { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View 
 const { SafeAreaView } = require('react-native-safe-area-context');
 const ErrorBanner = require('../components/ErrorBanner');
 const TimeWheelInput = require('../components/TimeWheelInput');
+const UnlockModeSettingsCard = require('../components/UnlockModeSettingsCard');
 const { useTaskMate } = require('../context/TaskMateContext');
 const { ROUTES } = require('../constants/routes');
 const {
@@ -226,6 +227,8 @@ function SettingsScreen({ navigation }) {
             </Text>
           </Pressable>
         </View>
+
+        <UnlockModeSettingsCard />
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>表示</Text>

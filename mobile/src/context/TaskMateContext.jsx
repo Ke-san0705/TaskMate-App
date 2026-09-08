@@ -20,6 +20,11 @@ const { STORAGE_KEYS } = require('../constants/defaults');
 const {
   hasAcceptedAccessibilityDisclosure
 } = require('../constants/focusDisclosure');
+const {
+  evaluateUnlockMode,
+  normalizeUnlockModeSettings,
+  validateUnlockModeSettings
+} = require('../utils/unlockMode');
 const { log, warn } = require('../utils/logger');
 const { messageFromError } = require('../utils/validation');
 
@@ -81,7 +86,17 @@ function TaskMateProvider({ children }) {
   const [notificationTaskId, setNotificationTaskId] = React.useState(null);
   const [installedApps, setInstalledApps] = React.useState([]);
   const [focusPermissions, setFocusPermissions] = React.useState({
-    accessibility: false
+    accessibility: false,
+    usageAccess: false
+  });
+  const [unlockStatus, setUnlockStatus] = React.useState({
+    enabled: false,
+    state: 'disabled',
+    usageAccessGranted: false,
+    totalUsageMillis: 0,
+    requiredMillis: 30 * 60 * 1000,
+    remainingMillis: 30 * 60 * 1000,
+    progressRatio: 0
   });
   const lastDialogueRef = React.useRef('');
   const [dialogue, setDialogue] = React.useState('今やることを一つ決めよう。');
@@ -94,8 +109,11 @@ function TaskMateProvider({ children }) {
   const progress = React.useMemo(() => todayProgress(tasks), [tasks]);
 
   const refreshFocusPermissions = React.useCallback(async () => {
-    const accessibility = await focusNativeModule.isAccessibilityServiceEnabled();
-    const next = { accessibility };
+    const [accessibility, usageAccess] = await Promise.all([
+      focusNativeModule.isAccessibilityServiceEnabled(),
+      focusNativeModule.isUsageAccessEnabled()
+    ]);
+    const next = { accessibility, usageAccess };
     setFocusPermissions(next);
     return next;
   }, []);
@@ -105,6 +123,27 @@ function TaskMateProvider({ children }) {
     setInstalledApps(apps);
     return apps;
   }, []);
+
+  const refreshUnlockStatus = React.useCallback(async (nextUnlockMode = null) => {
+    const mode = normalizeUnlockModeSettings(nextUnlockMode || settings?.unlockMode);
+    try {
+      const status = await focusNativeModule.getUnlockModeStatus();
+      setUnlockStatus(status);
+      return status;
+    } catch (statusError) {
+      const fallback = evaluateUnlockMode({
+        ...mode,
+        totalUsageMillis: 0,
+        usageAccessGranted: false
+      });
+      setUnlockStatus({
+        ...fallback,
+        enabled: mode.enabled
+      });
+      warn('UnlockMode', 'status refresh failed', statusError);
+      return fallback;
+    }
+  }, [settings?.unlockMode]);
 
   const syncNativeFocus = React.useCallback(async (nextFocusState, nextSettings) => {
     const activeSession = nextFocusState?.activeSession;
@@ -117,8 +156,12 @@ function TaskMateProvider({ children }) {
       startedAt: activeSession?.startedAt || '',
       blockedApps: activeSession?.blockedApps || []
     });
+    await focusNativeModule.setUnlockMonitorState({
+      unlockMode: nextSettings?.unlockMode
+    });
+    await refreshUnlockStatus(nextSettings?.unlockMode);
     await focusNativeModule.updateWidget();
-  }, []);
+  }, [refreshUnlockStatus]);
 
   const refreshProjectState = React.useCallback(async () => {
     try {
@@ -469,6 +512,31 @@ function TaskMateProvider({ children }) {
     return next;
   }
 
+  async function updateUnlockModeSettings(partial) {
+    const currentSettings = settings || await settingsRepository.readSettings();
+    const currentMode = normalizeUnlockModeSettings(currentSettings.unlockMode);
+    const nextModeInput = {
+      ...currentMode,
+      ...(partial || {})
+    };
+    const validation = validateUnlockModeSettings(nextModeInput);
+    if (!validation.valid) {
+      const validationError = new Error(validation.errors[0]);
+      setError(validationError.message);
+      throw validationError;
+    }
+    const nextSettings = await settingsRepository.updateSettings({
+      unlockMode: validation.value
+    });
+    setSettings(nextSettings);
+    await syncNativeFocus(focusState, nextSettings);
+    const latest = await refreshTasksAndFocus({ reconcileNotifications: false });
+    return {
+      settings: latest.loadedSettings,
+      unlockMode: latest.loadedSettings.unlockMode
+    };
+  }
+
   async function runProjectAction(action) {
     try {
       const result = await action();
@@ -581,6 +649,7 @@ function TaskMateProvider({ children }) {
   async function deleteAllLocalData() {
     await notificationService.cancelAllKnownNotifications();
     await focusNativeModule.setFocusMonitorState({ active: false });
+    await focusNativeModule.setUnlockMonitorState({ unlockMode: { enabled: false } });
     await clearDatabaseForReset();
     await AsyncStorage.multiRemove([
       STORAGE_KEYS.settings,
@@ -630,10 +699,12 @@ function TaskMateProvider({ children }) {
     loading,
     notificationTaskId,
     openAccessibilitySettings: focusNativeModule.openAccessibilitySettings,
+    openUsageAccessSettings: focusNativeModule.openUsageAccessSettings,
     progress,
     projectState,
     refreshFocusPermissions,
     refreshProjectState,
+    refreshUnlockStatus,
     requestNotifications,
     selectCharacter,
     selectedCharacter,
@@ -647,6 +718,7 @@ function TaskMateProvider({ children }) {
     undoItem,
     addProjectTaskToToday,
     completeProjectTask,
+    unlockStatus,
     updateBlockedApps,
     updateCustomCharacterDialogues,
     updateCustomCharacterImage,
@@ -654,6 +726,7 @@ function TaskMateProvider({ children }) {
     updateProject,
     updateProjectMilestone,
     updateProjectTask,
+    updateUnlockModeSettings,
     updateSettings,
     updateTask
   };

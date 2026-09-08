@@ -1,6 +1,7 @@
 const AsyncStorage = require('@react-native-async-storage/async-storage').default;
 const { DEFAULT_SETTINGS, STORAGE_KEYS } = require('../constants/defaults');
 const { warn } = require('../utils/logger');
+const { normalizeUnlockModeSettings } = require('../utils/unlockMode');
 
 let settingsQueue = Promise.resolve();
 
@@ -49,6 +50,7 @@ function normalizeSettings(value) {
           }))
           .filter((app) => app.packageName && app.appName)
       : DEFAULT_SETTINGS.defaultBlockedApps,
+    unlockMode: normalizeUnlockModeSettings(source.unlockMode),
     quietHours: {
       ...DEFAULT_SETTINGS.quietHours,
       ...(source.quietHours && typeof source.quietHours === 'object' ? source.quietHours : {})

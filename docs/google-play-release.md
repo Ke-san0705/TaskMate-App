@@ -1,6 +1,6 @@
 # TaskMate v2 Google Play Release Preparation
 
-Last updated: 2026-08-29
+Last updated: 2026-09-08
 
 ## Build Identity
 
@@ -43,6 +43,8 @@ Observed in the final release APK:
   - Expo/React Native runtime and package dependencies may use network APIs. TaskMate v2 core features are local-first and do not send task/focus data to an external server.
 - `android.permission.POST_NOTIFICATIONS`
   - Deadline and focus-return notifications.
+- `android.permission.PACKAGE_USAGE_STATS`
+  - Unlock Mode checks the total foreground usage time of only the user-selected requirement apps for the current local day. Usage is evaluated on device through `UsageStatsManager` and is not sent to external servers.
 - `android.permission.READ_EXTERNAL_STORAGE` with `maxSdkVersion=32`
   - Legacy Android support for selecting a custom character image. Android 13+ should use the system picker flow.
 - `android.permission.RECEIVE_BOOT_COMPLETED`
@@ -79,7 +81,6 @@ Observed in the final release APK:
 
 Explicitly removed from the final merged manifest:
 
-- `android.permission.PACKAGE_USAGE_STATS`
 - `android.permission.SYSTEM_ALERT_WINDOW`
 - `android.permission.CAMERA`
 - `android.permission.RECORD_AUDIO`
@@ -91,7 +92,7 @@ Component:
 
 - Service: `com.taskmate.mobile/.TaskMateAccessibilityService`
 - User-visible label: `TaskMate アプリ制限`
-- User-visible description: `集中中にユーザーが選んだアプリの起動だけを検知し、TaskMateへ戻る案内を表示します。画面内容、入力内容、メッセージ内容は取得しません。`
+- User-visible description: `集中モードまたはアンロックモード中にユーザーが選んだ制限アプリの起動だけを検知し、TaskMateへ戻る案内を表示します。画面内容、入力内容、メッセージ内容は取得しません。`
 - Accessibility config:
   - Event type: `typeWindowStateChanged`
   - `canRetrieveWindowContent=false`
@@ -100,26 +101,46 @@ Component:
 
 Behavior:
 
-- Only active while a TaskMate focus session is active.
+- Only reacts during an active focus session, or when Unlock Mode is ON and today's requirement-app usage has not reached the user-selected target.
 - Only reacts to packages the user selected as blocked apps.
 - Reads the foreground package name from accessibility window-state events.
 - Does not read screen text, input text, messages, browser content, photos, calls, or location.
-- When a blocked package is opened, it runs a deterministic rule: perform Android back action, open TaskMate with `taskmate://focus-blocked`, and show a focus-return notification.
+- When a blocked package is opened, it runs a deterministic rule: show the TaskMate blocked-app screen and provide a return path to TaskMate.
 - If Accessibility is disabled during an active focus session, TaskMate keeps the session state and shows an in-app warning with a button to open Android Accessibility settings.
 
 Prominent disclosure shown before the user can enable app restriction:
 
-> TaskMateは集中モード中だけ、あなたが選んだ制限対象アプリが前面に出たことと、端末に表示できるアプリ一覧を確認します。
+> TaskMateは集中モードまたはアンロックモード中だけ、あなたが選んだ制限対象アプリが前面に出たことと、端末に表示できるアプリ一覧を確認します。
 >
-> 制限対象アプリを開いたときは、戻る操作とTaskMateへの案内を行い、集中画面へ戻りやすくします。
+> 制限対象アプリを開いたときは、あなたが設定したルールに従ってTaskMateの案内画面を表示します。
 >
 > TaskMateは画面内容、キー入力、メッセージ内容、Web閲覧内容、写真、通話履歴、位置情報を読み取りません。
 >
-> タスク、集中状態、制限アプリの情報は端末内に保存し、外部サーバーへ送信しません。同意しない場合もタスク管理と通常の集中画面は利用できます。
+> タスク、集中状態、アンロック設定、制限アプリの情報は端末内に保存し、外部サーバーへ送信しません。同意しない場合もタスク管理と通常の集中画面は利用できます。
 
 Consent checkbox:
 
-> 内容を理解して、集中モードのアプリ制限に同意します
+> 内容を理解して、TaskMateのアプリ制限に同意します
+
+## Usage Access / Unlock Mode
+
+Unlock Mode uses Android `UsageStatsManager` for requirement checks only.
+
+- Permission: `android.permission.PACKAGE_USAGE_STATS`
+- Android settings intent: `Settings.ACTION_USAGE_ACCESS_SETTINGS`
+- Data read: foreground usage duration for the user-selected requirement packages for the current local day.
+- Data not read: screen content, typed text, SNS posts, browser page content, messages, photos, call logs, contacts, location.
+- Sharing: none. The usage total and Unlock Mode settings remain on device.
+- Reset rule: local-day usage is recalculated from midnight to the current time. No background polling timer is required.
+- Behavior without Usage Access: Unlock Mode is shown as permission-required and must not be treated as unlocked.
+
+Prominent disclosure shown before opening Usage Access settings:
+
+> アンロックモードは、あなたが選んだ条件アプリの今日の使用時間を端末内で合計し、必要時間に達したかを判定します。
+>
+> TaskMateはキー入力、SNSの内容、Web閲覧内容、メッセージ内容を取得しません。使用時間の判定結果は外部サーバーへ送信しません。
+>
+> アンロック条件の判定のため、選んだ条件アプリの今日の使用時間だけを端末内で確認することに同意します。
 
 Policy notes:
 
@@ -150,6 +171,7 @@ Local-only data stored on device:
 - Tasks: title, description, due date/time, completion status, timestamps.
 - Settings: notification preferences, quiet hours, motion reduction, selected character, custom character reference.
 - Focus sessions: active task id/title, start/end timestamps, selected blocked package names and app labels, completion/interruption status.
+- Unlock Mode: ON/OFF, required minutes, user-selected requirement app package names/labels, user-selected blocked app package names/labels, and local same-day usage totals derived on device.
 - Widget state is derived from the same local database/settings.
 
 Sensitive/non-collected data to state clearly:
@@ -161,7 +183,8 @@ Sensitive/non-collected data to state clearly:
 - No call history.
 - No contacts.
 - No location.
-- Foreground app package is observed locally only during focus mode, only to detect user-selected blocked apps, and is not sent externally.
+- Foreground app package is observed locally only during focus/Unlock Mode restriction checks, only to detect user-selected blocked apps, and is not sent externally.
+- App usage duration is read locally only for user-selected requirement apps and is not sent externally.
 
 Third-party SDK caveat:
 
@@ -225,15 +248,15 @@ Prepare these before Internal testing review:
 - Data Safety form.
 - Privacy policy URL.
 - Accessibility API declaration:
-  - Purpose: focus support by detecting only user-selected blocked apps while a focus session is active.
-  - User benefit: helps users return to the current task instead of distracting apps.
-  - Data accessed: foreground app package name/app label only during focus mode.
+  - Purpose: focus support by detecting only user-selected blocked apps while a focus session is active or Unlock Mode is still locked.
+  - User benefit: helps users return to the current task or complete requirement-app time before opening distracting apps.
+  - Data accessed: foreground app package name/app label only during user-enabled restriction checks.
   - Data not accessed: screen content, typed text, messages, browser content, photos, calls, contacts, location.
   - Sharing: none.
   - Prominent disclosure: shown in Focus setup and Settings before enabling restrictions.
   - Demo video: required/recommended for review evidence.
 - Sensitive permissions declaration review:
-  - No Usage Stats permission.
+  - Usage Stats permission is used for Unlock Mode's local same-day requirement-app usage total.
   - No overlay permission.
   - No VPN permission.
   - No broad file access permission.

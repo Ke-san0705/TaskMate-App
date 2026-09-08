@@ -36,7 +36,10 @@ class TaskMateFocusModule(
       val apps = resolveInfos
         .mapNotNull { info ->
           val packageName = info.activityInfo?.packageName ?: return@mapNotNull null
-          if (packageName == reactContext.packageName || !seen.add(packageName)) {
+          if (
+            TaskMateRestrictionPolicy.isNeverBlockedPackage(reactContext, packageName) ||
+            !seen.add(packageName)
+          ) {
             return@mapNotNull null
           }
           val appName = info.loadLabel(packageManager)?.toString()?.trim().orEmpty()
@@ -65,6 +68,16 @@ class TaskMateFocusModule(
   @ReactMethod
   fun openAccessibilitySettings(promise: Promise) {
     openSettings(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS), promise)
+  }
+
+  @ReactMethod
+  fun isUsageAccessEnabled(promise: Promise) {
+    promise.resolve(TaskMateRestrictionPolicy.hasUsageAccess(reactContext))
+  }
+
+  @ReactMethod
+  fun openUsageAccessSettings(promise: Promise) {
+    openSettings(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS), promise)
   }
 
   @ReactMethod
@@ -115,6 +128,81 @@ class TaskMateFocusModule(
     }
   }
 
+  @ReactMethod
+  fun setUnlockMonitorState(
+    enabled: Boolean,
+    requiredMinutes: Double,
+    requirementPackages: ReadableArray,
+    requirementAppNames: ReadableArray,
+    blockedPackages: ReadableArray,
+    blockedAppNames: ReadableArray,
+    promise: Promise
+  ) {
+    try {
+      val requirements = linkedSetOf<String>()
+      val requirementNames = linkedSetOf<String>()
+      for (index in 0 until requirementPackages.size()) {
+        requirementPackages.getString(index)?.takeIf { it.isNotBlank() }?.let {
+          requirements.add(it)
+        }
+      }
+      for (index in 0 until requirementAppNames.size()) {
+        requirementAppNames.getString(index)?.takeIf { it.isNotBlank() }?.let {
+          requirementNames.add(it)
+        }
+      }
+
+      val blocked = linkedSetOf<String>()
+      val names = linkedSetOf<String>()
+      for (index in 0 until blockedPackages.size()) {
+        blockedPackages.getString(index)?.takeIf { it.isNotBlank() }?.let { packageName ->
+          if (
+            !TaskMateRestrictionPolicy.isNeverBlockedPackage(reactContext, packageName) &&
+            !requirements.contains(packageName)
+          ) {
+            blocked.add(packageName)
+          }
+        }
+      }
+      for (index in 0 until blockedAppNames.size()) {
+        blockedAppNames.getString(index)?.takeIf { it.isNotBlank() }?.let { names.add(it) }
+      }
+
+      reactContext.getSharedPreferences(FOCUS_PREFS, Context.MODE_PRIVATE)
+        .edit()
+        .putBoolean(KEY_UNLOCK_ENABLED, enabled)
+        .putInt(KEY_UNLOCK_REQUIRED_MINUTES, requiredMinutes.toInt().coerceIn(1, 12 * 60))
+        .putStringSet(KEY_UNLOCK_REQUIREMENT_PACKAGES, requirements)
+        .putStringSet(KEY_UNLOCK_REQUIREMENT_NAMES, requirementNames)
+        .putStringSet(KEY_UNLOCK_BLOCKED_PACKAGES, blocked)
+        .putStringSet(KEY_UNLOCK_BLOCKED_NAMES, names)
+        .putLong(KEY_UNLOCK_UPDATED_AT, System.currentTimeMillis())
+        .apply()
+      promise.resolve(true)
+    } catch (error: Throwable) {
+      promise.reject("taskmate_unlock_state_failed", error)
+    }
+  }
+
+  @ReactMethod
+  fun getUnlockModeStatus(promise: Promise) {
+    try {
+      val status = TaskMateRestrictionPolicy.readUnlockStatus(reactContext)
+      val result = Arguments.createMap()
+      result.putBoolean("enabled", status.enabled)
+      result.putString("state", status.state)
+      result.putBoolean("usageAccessGranted", status.usageAccessGranted)
+      result.putDouble("totalUsageMillis", status.totalUsageMillis.toDouble())
+      result.putDouble("requiredMillis", status.requiredMillis.toDouble())
+      result.putDouble("remainingMillis", status.remainingMillis.toDouble())
+      result.putDouble("progressRatio", status.progressRatio)
+      result.putString("dateKey", status.dateKey)
+      promise.resolve(result)
+    } catch (error: Throwable) {
+      promise.reject("taskmate_unlock_status_failed", error)
+    }
+  }
+
   private fun openSettings(intent: Intent, promise: Promise) {
     try {
       intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -149,5 +237,12 @@ class TaskMateFocusModule(
     const val KEY_BLOCKED_NAMES = "blocked_names"
     const val KEY_STARTED_AT_MILLIS = "started_at_millis"
     const val KEY_UPDATED_AT = "updated_at"
+    const val KEY_UNLOCK_ENABLED = "unlock_enabled"
+    const val KEY_UNLOCK_REQUIRED_MINUTES = "unlock_required_minutes"
+    const val KEY_UNLOCK_REQUIREMENT_PACKAGES = "unlock_requirement_packages"
+    const val KEY_UNLOCK_REQUIREMENT_NAMES = "unlock_requirement_names"
+    const val KEY_UNLOCK_BLOCKED_PACKAGES = "unlock_blocked_packages"
+    const val KEY_UNLOCK_BLOCKED_NAMES = "unlock_blocked_names"
+    const val KEY_UNLOCK_UPDATED_AT = "unlock_updated_at"
   }
 }
