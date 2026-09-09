@@ -13,11 +13,16 @@ const DEFAULT_SETTINGS = Object.freeze({
   notificationsEnabled: true,
   notificationMinutesBefore: 30,
   notificationOffsets: [30, 0],
-  behaviorEnabled: true,
-  ambientEffects: true,
-  completionReactions: true,
-  relationshipMemoryEnabled: true,
-  behaviorIntensity: 'normal',
+  focusRestrictionEnabled: true,
+  focusAccessibilityDisclosureAcceptedAt: null,
+  defaultBlockedApps: [],
+  unlockMode: {
+    enabled: false,
+    requiredMinutes: 30,
+    requirementApps: [],
+    blockedApps: [],
+    usageAccessDisclosureAcceptedAt: null
+  },
   quietHours: {
     enabled: true,
     start: '22:00',

@@ -6,10 +6,12 @@ const {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View
 } = require('react-native');
 const { localDateKey } = require('@taskmate/core');
+const DateWheelInput = require('./DateWheelInput');
+const JapaneseTextInput = require('./JapaneseTextInput');
+const TimeWheelInput = require('./TimeWheelInput');
 const { messageFromError } = require('../utils/validation');
 
 function createInitialForm(task) {
@@ -57,7 +59,7 @@ function TaskForm({ task, onSubmit, onCancel }) {
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <Text style={styles.label}>タスク名</Text>
-        <TextInput
+        <JapaneseTextInput
           accessibilityLabel="タスク名"
           value={form.title}
           onChangeText={(value) => update('title', value)}
@@ -66,28 +68,24 @@ function TaskForm({ task, onSubmit, onCancel }) {
           maxLength={100}
         />
 
-        <Text style={styles.label}>日付 YYYY-MM-DD</Text>
-        <TextInput
+        <Text style={styles.label}>日付</Text>
+        <DateWheelInput
           accessibilityLabel="日付"
           value={form.date}
-          onChangeText={(value) => update('date', value)}
-          placeholder="2026-06-18"
+          onChange={(value) => update('date', value)}
           style={styles.input}
-          keyboardType="numbers-and-punctuation"
         />
 
-        <Text style={styles.label}>時刻 HH:mm（空なら今日中）</Text>
-        <TextInput
+        <Text style={styles.label}>時刻（空なら今日中）</Text>
+        <TimeWheelInput
           accessibilityLabel="時刻"
           value={form.time}
-          onChangeText={(value) => update('time', value)}
-          placeholder="18:00"
+          onChange={(value) => update('time', value)}
           style={styles.input}
-          keyboardType="numbers-and-punctuation"
         />
 
         <Text style={styles.label}>ジャンル</Text>
-        <TextInput
+        <JapaneseTextInput
           accessibilityLabel="ジャンル"
           value={form.genre}
           onChangeText={(value) => update('genre', value)}
@@ -123,7 +121,7 @@ function TaskForm({ task, onSubmit, onCancel }) {
         </View>
 
         <Text style={styles.label}>説明</Text>
-        <TextInput
+        <JapaneseTextInput
           accessibilityLabel="説明"
           value={form.description}
           onChangeText={(value) => update('description', value)}

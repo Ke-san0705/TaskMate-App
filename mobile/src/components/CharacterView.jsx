@@ -1,23 +1,32 @@
 const React = require('react');
 const { Image, Pressable, StyleSheet, Text, View } = require('react-native');
+const { colors } = require('../theme/taskMateTheme');
 
 const MOOD_LABELS = {
-  calm: '落ち着き',
-  attentive: '少し注目',
-  restless: 'そわそわ',
-  anxious: '一つに絞ろう',
-  overloaded: '情報を減らそう',
-  focusing: '今やる',
+  wait: '案内中',
+  focus: '集中',
+  complete: '完了',
+  alarm: '通知',
+  click: '反応',
+  calm: '案内中',
+  focusing: '集中',
   relieved: '完了',
-  celebrating: '全部完了',
-  reconnecting: 'おかえり',
+  celebrating: '完了',
   notifying: '通知',
   clicked: '反応'
 };
 
-function CharacterView({ character, mood = 'calm', onPress }) {
+function CharacterView({ character, mood = 'calm', onPress, size = 180 }) {
   const images = character?.images || {};
-  const source = images[mood] || images.wait || images.calm;
+  const imageKey =
+    mood === 'focus' || mood === 'focusing'
+      ? 'wait'
+      : mood === 'complete' || mood === 'relieved' || mood === 'celebrating'
+        ? 'click'
+        : mood === 'alarm' || mood === 'notifying'
+          ? 'alarm'
+          : mood;
+  const source = images[imageKey] || images.wait || images.calm;
   return (
     <Pressable
       accessibilityRole="button"
@@ -25,7 +34,7 @@ function CharacterView({ character, mood = 'calm', onPress }) {
       onPress={onPress}
       style={styles.container}
     >
-      <View style={styles.imageFrame}>
+      <View style={[styles.imageFrame, { width: size, height: size }]}>
         {source ? (
           <Image source={source} style={styles.image} resizeMode="contain" />
         ) : (
@@ -54,15 +63,15 @@ const styles = StyleSheet.create({
     height: '100%'
   },
   noImage: {
-    color: '#516052'
+    color: colors.textMuted
   },
   name: {
-    color: '#253328',
+    color: colors.text,
     fontSize: 18,
     fontWeight: '800'
   },
   mood: {
-    color: '#516052',
+    color: colors.textMuted,
     fontSize: 13,
     fontWeight: '700'
   }

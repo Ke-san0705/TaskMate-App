@@ -2,21 +2,31 @@
   "expo": {
     "name": "TaskMate Mobile",
     "slug": "taskmate-mobile",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "scheme": "taskmate",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "buildNumber": "2.0.0"
     },
     "android": {
       "package": "com.taskmate.mobile",
+      "versionCode": 20,
       "permissions": [
-        "POST_NOTIFICATIONS"
+        "POST_NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED",
+        "PACKAGE_USAGE_STATS"
+      ],
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.CAMERA"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#F3F8F1",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -38,7 +48,8 @@
         {
           "photosPermission": "キャラクター画像を選ぶときだけ写真ライブラリを使用します。"
         }
-      ]
+      ],
+      "./plugins/withTaskMateWidget.cjs"
     ]
   }
 }

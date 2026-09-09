@@ -92,6 +92,9 @@ export function deadlineStatus(dateKey, today = getLocalDateKey(), warningDays =
 }
 
 export function calculateProjectProgress(project, projectTasks) {
+  if (project.status === 'completed') {
+    return 100;
+  }
   const tasks = projectTasks.filter((task) => task.projectId === project.id);
   if (tasks.length === 0) {
     return project.progress || 0;

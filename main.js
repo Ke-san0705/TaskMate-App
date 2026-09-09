@@ -7,11 +7,15 @@ const {
   nativeImage,
   Notification,
   powerMonitor,
+  safeStorage,
   screen,
+  shell,
   Tray
 } = require('electron');
 
 const { createFileManager } = require('./main/fileManager');
+const { createGoogleCalendarService } = require('./main/googleCalendarService');
+const { createOAuthCallbackBridge } = require('./main/oauthCallbackBridge');
 const { createBehaviorController } = require('./main/behaviorController');
 const { registerIpcHandlers } = require('./main/ipcHandlers');
 const { createLifeStateManager } = require('./main/lifeStateManager');
@@ -33,6 +37,8 @@ if (!hasSingleInstanceLock) {
   let trayManager;
   let lifeStateManager;
   let behaviorController;
+  let googleCalendarService;
+  let oauthCallbackBridge;
   let unregisterIpc;
   let resumeHandler;
   const activeNativeNotifications = new Set();
@@ -146,6 +152,14 @@ if (!hasSingleInstanceLock) {
 
     fileManager = createFileManager(app);
     await fileManager.ensureInitialFiles();
+    googleCalendarService = createGoogleCalendarService({
+      app,
+      fileManager,
+      paths: fileManager.paths,
+      safeStorage,
+      shell,
+      onUpdated: (status) => windowManager?.sendGoogleCalendarUpdated(status)
+    });
     const settings = await fileManager.getSettings();
     lifeStateManager = createLifeStateManager({ fileManager });
     await lifeStateManager.load();
@@ -169,6 +183,9 @@ if (!hasSingleInstanceLock) {
       }
     });
     await windowManager.createMainWindow(settings);
+    oauthCallbackBridge = createOAuthCallbackBridge({
+      onCallback: (payload) => windowManager?.sendSupabaseOAuthCallback(payload)
+    });
 
     behaviorController = createBehaviorController({
       fileManager,
@@ -244,6 +261,9 @@ if (!hasSingleInstanceLock) {
       app,
       ipcMain,
       fileManager,
+      googleCalendarService,
+      oauthCallbackBridge,
+      shell,
       windowManager,
       scheduler,
       behaviorController,
@@ -275,6 +295,9 @@ if (!hasSingleInstanceLock) {
 
     await applySettings(settings);
     scheduler.start();
+    googleCalendarService.syncToday().catch((error) => {
+      console.error('Googleカレンダーの初回同期に失敗しました。', error);
+    });
     await behaviorController.start(
       launchResult.reconnectEvent
         ? {
@@ -285,6 +308,9 @@ if (!hasSingleInstanceLock) {
     );
     resumeHandler = () => {
       scheduler.checkNow();
+      googleCalendarService?.syncToday({ force: true }).catch((error) => {
+        console.error('スリープ復帰後のGoogleカレンダー同期に失敗しました。', error);
+      });
       behaviorController.recalculate('power-resume').catch((error) => {
         console.error('スリープ復帰後のふるまい再計算に失敗しました。', error);
       });
@@ -316,6 +342,7 @@ if (!hasSingleInstanceLock) {
     behaviorController?.stop();
     watcher?.stop();
     trayManager?.destroy();
+    oauthCallbackBridge?.stop();
     for (const notification of activeNativeNotifications) {
       notification.close();
     }

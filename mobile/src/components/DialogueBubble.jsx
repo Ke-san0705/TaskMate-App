@@ -1,5 +1,6 @@
 const React = require('react');
 const { StyleSheet, Text, View } = require('react-native');
+const { colors, radius, shadows } = require('../theme/taskMateTheme');
 
 function DialogueBubble({ text }) {
   return (
@@ -13,20 +14,16 @@ function DialogueBubble({ text }) {
 const styles = StyleSheet.create({
   bubble: {
     position: 'relative',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#202820',
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3
+    paddingVertical: 15,
+    paddingHorizontal: 18,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    ...shadows.soft
   },
   text: {
-    color: '#1F2A22',
+    color: colors.text,
     fontSize: 16,
     lineHeight: 23,
     fontWeight: '700'
@@ -38,10 +35,10 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     transform: [{ rotate: '45deg' }],
-    borderRightWidth: 2,
-    borderBottomWidth: 2,
-    borderColor: '#202820',
-    backgroundColor: '#FFFFFF'
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card
   }
 });
 

@@ -2,16 +2,17 @@ const React = require('react');
 const { Alert, Pressable, StyleSheet, Text, View } = require('react-native');
 const { classifyTask } = require('@taskmate/core');
 const { formatTaskTime } = require('../utils/localDate');
+const { colors, radius, shadows } = require('../theme/taskMateTheme');
 
 const STATE_LABELS = {
   future: 'これから',
-  calm: '落ち着き',
+  today: '今日',
   warning: '近づき中',
   urgent: 'まもなく',
   overdue: '期限超過'
 };
 
-function TaskCard({ task, focusTaskId, onComplete, onUndo, onDelete, onEdit, onFocus }) {
+function TaskCard({ task, focusTaskId, onComplete, onUndo, onDelete, onEdit, onFocus, onStartFocus }) {
   const state = classifyTask(task, new Date()).state;
   const focused = focusTaskId === task.id;
   return (
@@ -26,6 +27,9 @@ function TaskCard({ task, focusTaskId, onComplete, onUndo, onDelete, onEdit, onF
         <Text style={[styles.badge, styles[`badge_${state}`]]}>{STATE_LABELS[state]}</Text>
       </View>
       {task.description ? <Text style={styles.description}>{task.description}</Text> : null}
+      {task.source === 'project' && task.projectName ? (
+        <Text style={styles.projectLink}>長期タスク: {task.projectName}</Text>
+      ) : null}
       <View style={styles.actions}>
         {task.completed ? (
           <Pressable
@@ -56,6 +60,16 @@ function TaskCard({ task, focusTaskId, onComplete, onUndo, onDelete, onEdit, onF
             <Text style={styles.secondaryText}>{focused ? '選択中' : '今やる'}</Text>
           </Pressable>
         ) : null}
+        {!task.completed ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${task.title}の集中を始める`}
+            style={styles.secondary}
+            onPress={() => onStartFocus(task)}
+          >
+            <Text style={styles.secondaryText}>集中</Text>
+          </Pressable>
+        ) : null}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${task.title}を編集する`}
@@ -84,19 +98,20 @@ function TaskCard({ task, focusTaskId, onComplete, onUndo, onDelete, onEdit, onF
 
 const styles = StyleSheet.create({
   card: {
-    padding: 14,
-    borderRadius: 8,
+    padding: 15,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#D5DED3',
-    backgroundColor: '#FFFFFF',
-    gap: 10
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    gap: 10,
+    ...shadows.soft
   },
   completed: {
     opacity: 0.68
   },
   focused: {
-    borderColor: '#315C3A',
-    backgroundColor: '#F3F8EF'
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft
   },
   header: {
     flexDirection: 'row',
@@ -107,35 +122,43 @@ const styles = StyleSheet.create({
     flex: 1
   },
   title: {
-    color: '#1F2A22',
+    color: colors.text,
     fontSize: 16,
     fontWeight: '900'
   },
   meta: {
     marginTop: 4,
-    color: '#5A675E',
+    color: colors.textMuted,
     fontSize: 12
   },
   description: {
-    color: '#3D4A40',
+    color: colors.textMuted,
     fontSize: 14,
     lineHeight: 20
+  },
+  projectLink: {
+    color: colors.primaryDark,
+    fontSize: 13,
+    fontWeight: '900'
   },
   badge: {
     alignSelf: 'flex-start',
     paddingVertical: 5,
     paddingHorizontal: 8,
-    borderRadius: 6,
+    borderRadius: radius.sm,
     overflow: 'hidden',
-    color: '#1F2A22',
+    color: colors.text,
     fontSize: 12,
     fontWeight: '800'
   },
   badge_future: { backgroundColor: '#E6EEF2' },
-  badge_calm: { backgroundColor: '#DDEED9' },
-  badge_warning: { backgroundColor: '#F5E5B8' },
+  badge_today: { backgroundColor: colors.primarySoft },
+  badge_warning: { backgroundColor: colors.warningBg },
   badge_urgent: { backgroundColor: '#F2C6A6' },
-  badge_overdue: { backgroundColor: '#F2B8B8' },
+  badge_overdue: {
+    color: colors.dangerText,
+    backgroundColor: colors.overdueBg
+  },
   actions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -144,8 +167,8 @@ const styles = StyleSheet.create({
   primary: {
     paddingVertical: 9,
     paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: '#315C3A'
+    borderRadius: radius.sm,
+    backgroundColor: colors.primary
   },
   primaryText: {
     color: '#FFFFFF',
@@ -154,25 +177,25 @@ const styles = StyleSheet.create({
   secondary: {
     paddingVertical: 9,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: '#A8B8A4',
-    backgroundColor: '#FFFFFF'
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.card
   },
   secondaryText: {
-    color: '#315C3A',
+    color: colors.primary,
     fontWeight: '800'
   },
   danger: {
     paddingVertical: 9,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: '#B24A4A',
-    backgroundColor: '#FFF7F7'
+    borderColor: '#D7A6A6',
+    backgroundColor: colors.dangerSoft
   },
   dangerText: {
-    color: '#8E2F2F',
+    color: colors.dangerText,
     fontWeight: '800'
   }
 });

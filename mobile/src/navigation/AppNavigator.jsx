@@ -1,5 +1,5 @@
 const React = require('react');
-const { Text } = require('react-native');
+const { Linking } = require('react-native');
 const {
   NavigationContainer,
   createNavigationContainerRef
@@ -9,19 +9,81 @@ const { createNativeStackNavigator } = require('@react-navigation/native-stack')
 const HomeScreen = require('../screens/HomeScreen');
 const TasksScreen = require('../screens/TasksScreen');
 const TaskEditScreen = require('../screens/TaskEditScreen');
+const FocusSetupScreen = require('../screens/FocusSetupScreen');
+const FocusBlockedScreen = require('../screens/FocusBlockedScreen');
 const CharactersScreen = require('../screens/CharactersScreen');
 const CharacterEditScreen = require('../screens/CharacterEditScreen');
 const SettingsScreen = require('../screens/SettingsScreen');
+const TaskMateNavIcon = require('../components/TaskMateNavIcon');
 const { useTaskMate } = require('../context/TaskMateContext');
 const { ROUTES } = require('../constants/routes');
+const { colors, radius } = require('../theme/taskMateTheme');
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 const navigationRef = createNavigationContainerRef();
 
-function icon(label) {
-  return ({ color }) => (
-    <Text style={{ color, fontWeight: '900', fontSize: 16 }}>{label}</Text>
+function getFocusBlockedPackage(url) {
+  const match = String(url || '').match(/[?&]package=([^&]+)/);
+  return match ? decodeURIComponent(match[1].replace(/\+/g, '%20')) : '';
+}
+
+function getFocusBlockedReason(url) {
+  const match = String(url || '').match(/[?&]reason=([^&]+)/);
+  return match ? decodeURIComponent(match[1].replace(/\+/g, '%20')) : '';
+}
+
+function isFocusBlockedUrl(url) {
+  return String(url || '').startsWith('taskmate://focus-blocked');
+}
+
+function isFocusActiveUrl(url) {
+  return String(url || '').startsWith('taskmate://focus-active');
+}
+
+function isUnlockModeUrl(url) {
+  return String(url || '').startsWith('taskmate://unlock-mode');
+}
+
+function navigateToFocusBlocked(url) {
+  const navigate = () => {
+    navigationRef.navigate(ROUTES.FocusBlocked, {
+      packageName: getFocusBlockedPackage(url),
+      reason: getFocusBlockedReason(url)
+    });
+  };
+  if (navigationRef.isReady()) {
+    navigate();
+  } else {
+    setTimeout(navigate, 250);
+  }
+}
+
+function navigateToFocusActive() {
+  const navigate = () => {
+    navigationRef.navigate(ROUTES.Tabs, { screen: ROUTES.Home });
+  };
+  if (navigationRef.isReady()) {
+    navigate();
+  } else {
+    setTimeout(navigate, 250);
+  }
+}
+
+function navigateToUnlockMode() {
+  const navigate = () => {
+    navigationRef.navigate(ROUTES.Tabs, { screen: ROUTES.Settings });
+  };
+  if (navigationRef.isReady()) {
+    navigate();
+  } else {
+    setTimeout(navigate, 250);
+  }
+}
+
+function icon(name) {
+  return ({ color, focused }) => (
+    <TaskMateNavIcon name={name} color={color} focused={focused} />
   );
 }
 
@@ -30,36 +92,43 @@ function Tabs() {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#315C3A',
-        tabBarInactiveTintColor: '#6D786E',
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
-          backgroundColor: '#FFFFFF',
-          borderTopColor: '#D5DED3'
+          minHeight: 74,
+          paddingTop: 7,
+          paddingBottom: 9,
+          backgroundColor: colors.card,
+          borderTopColor: colors.border,
+          borderTopLeftRadius: radius.md,
+          borderTopRightRadius: radius.md
         },
         tabBarLabelStyle: {
-          fontWeight: '800'
+          marginTop: 2,
+          fontSize: 12,
+          fontWeight: '900'
         }
       }}
     >
       <Tab.Screen
         name={ROUTES.Home}
         component={HomeScreen}
-        options={{ title: 'ホーム', tabBarIcon: icon('家') }}
+        options={{ title: 'ホーム', tabBarIcon: icon('home') }}
       />
       <Tab.Screen
         name={ROUTES.Tasks}
         component={TasksScreen}
-        options={{ title: 'タスク', tabBarIcon: icon('予') }}
+        options={{ title: 'タスク', tabBarIcon: icon('tasks') }}
       />
       <Tab.Screen
         name={ROUTES.Characters}
         component={CharactersScreen}
-        options={{ title: 'キャラ', tabBarIcon: icon('人') }}
+        options={{ title: 'キャラ', tabBarIcon: icon('characters') }}
       />
       <Tab.Screen
         name={ROUTES.Settings}
         component={SettingsScreen}
-        options={{ title: '設定', tabBarIcon: icon('設') }}
+        options={{ title: '設定', tabBarIcon: icon('settings') }}
       />
     </Tab.Navigator>
   );
@@ -80,10 +149,42 @@ function NotificationBridge() {
   return null;
 }
 
+function FocusLinkBridge() {
+  React.useEffect(() => {
+    let mounted = true;
+    Linking.getInitialURL()
+      .then((url) => {
+        if (mounted && isFocusBlockedUrl(url)) {
+          navigateToFocusBlocked(url);
+        } else if (mounted && isFocusActiveUrl(url)) {
+          navigateToFocusActive();
+        } else if (mounted && isUnlockModeUrl(url)) {
+          navigateToUnlockMode();
+        }
+      })
+      .catch(() => {});
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      if (isFocusBlockedUrl(url)) {
+        navigateToFocusBlocked(url);
+      } else if (isFocusActiveUrl(url)) {
+        navigateToFocusActive();
+      } else if (isUnlockModeUrl(url)) {
+        navigateToUnlockMode();
+      }
+    });
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
+  return null;
+}
+
 function AppNavigator() {
   return (
     <NavigationContainer ref={navigationRef}>
       <NotificationBridge />
+      <FocusLinkBridge />
       <Stack.Navigator>
         <Stack.Screen
           name={ROUTES.Tabs}
@@ -94,6 +195,16 @@ function AppNavigator() {
           name={ROUTES.TaskEdit}
           component={TaskEditScreen}
           options={{ title: 'タスク' }}
+        />
+        <Stack.Screen
+          name={ROUTES.FocusSetup}
+          component={FocusSetupScreen}
+          options={{ title: '集中を始める' }}
+        />
+        <Stack.Screen
+          name={ROUTES.FocusBlocked}
+          component={FocusBlockedScreen}
+          options={{ title: '集中中' }}
         />
         <Stack.Screen
           name={ROUTES.CharacterEdit}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import useProjectState from '../hooks/useProjectState';
 import {
   PROJECT_PRIORITY_LABELS,
@@ -41,6 +41,7 @@ const EMPTY_TASK_FORM = {
   milestoneId: '',
   startDate: '',
   deadline: '',
+  time: '',
   scheduledDate: '',
   estimatedMinutes: 45,
   importance: 3,
@@ -66,6 +67,9 @@ const QUICK_WORKLOADS = {
   normal: { label: '普通', multiplier: 1 },
   heavy: { label: '重め', multiplier: 1.45 }
 };
+
+const COMPACT_COLLAPSE_IGNORE_SELECTOR =
+  'button, a, input, select, textarea, label, summary, [data-compact-collapse-ignore="true"]';
 
 const QUICK_PLAN_TEMPLATES = [
   {
@@ -567,6 +571,7 @@ function buildQuickPlanDraft(form) {
 export default function ProjectManagementMode({
   settings,
   onDialogue,
+  onCompactCollapsedChange,
   compact = false,
   title = '長期タスク管理',
   eyebrow = 'LONG TERM TASKS'
@@ -574,8 +579,8 @@ export default function ProjectManagementMode({
   const projectState = useProjectState();
   const [selectedCategoryId, setSelectedCategoryId] = useState('all');
   const [selectedProjectId, setSelectedProjectId] = useState(null);
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [taskFilter, setTaskFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('active');
+  const [taskFilter, setTaskFilter] = useState('active');
   const [sortMode, setSortMode] = useState('deadline');
   const [categoryForm, setCategoryForm] = useState(EMPTY_CATEGORY_FORM);
   const [editingCategoryId, setEditingCategoryId] = useState(null);
@@ -587,8 +592,13 @@ export default function ProjectManagementMode({
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editorPanel, setEditorPanel] = useState('project');
   const [quickPlanForm, setQuickPlanForm] = useState(EMPTY_QUICK_PLAN_FORM);
+  const [compactCollapsed, setCompactCollapsed] = useState(false);
+  const [compactFrameHeight, setCompactFrameHeight] = useState(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const compactPanelRef = useRef(null);
+  const compactPointerStartRef = useRef(null);
+  const editorPanelRef = useRef(null);
   const today = getLocalDateKey();
   const pSettings = useMemo(() => projectSettings(settings), [settings]);
   const selectedQuickTemplate = quickTemplateById(quickPlanForm.templateId);
@@ -635,10 +645,56 @@ export default function ProjectManagementMode({
     [projectState.projectTasks, projectState.projects, pSettings, today]
   );
 
+  useEffect(() => {
+    if (!compact) {
+      return;
+    }
+    onCompactCollapsedChange?.(compactCollapsed);
+  }, [compact, compactCollapsed, onCompactCollapsedChange]);
+
+  useEffect(() => {
+    if (!compact || compactCollapsed) {
+      return undefined;
+    }
+    const panel = compactPanelRef.current;
+    if (!panel) {
+      return undefined;
+    }
+
+    let frame = null;
+    const updateFrameHeight = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const height = Math.ceil(panel.getBoundingClientRect().height);
+        if (!Number.isFinite(height) || height <= 0) {
+          return;
+        }
+        setCompactFrameHeight((current) =>
+          current && Math.abs(current - height) <= 1 ? current : height
+        );
+      });
+    };
+
+    updateFrameHeight();
+    if (typeof ResizeObserver === 'undefined') {
+      return () => cancelAnimationFrame(frame);
+    }
+
+    const observer = new ResizeObserver(updateFrameHeight);
+    observer.observe(panel);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [compact, compactCollapsed, projectState.loading]);
+
   const filteredSummaries = useMemo(() => {
     const filtered = summaries.filter((summary) => {
       if (selectedCategoryId !== 'all' && summary.project.categoryId !== selectedCategoryId) {
         return false;
+      }
+      if (statusFilter === 'active') {
+        return summary.project.status !== 'completed';
       }
       if (statusFilter !== 'all' && summary.project.status !== statusFilter) {
         return false;
@@ -696,13 +752,22 @@ export default function ProjectManagementMode({
   }, [filteredSummaries, projectState.categories, selectedCategoryId]);
 
   const selectedSummary =
-    summaries.find((summary) => summary.project.id === selectedProjectId) ||
+    filteredSummaries.find((summary) => summary.project.id === selectedProjectId) ||
     filteredSummaries[0] ||
     null;
   const selectedProjectKey = selectedSummary?.project.id || '';
 
   useEffect(() => {
-    if (!selectedProjectId && filteredSummaries[0]) {
+    if (filteredSummaries.length === 0) {
+      if (selectedProjectId) {
+        setSelectedProjectId(null);
+      }
+      return;
+    }
+    const selectedProjectIsVisible = filteredSummaries.some(
+      (summary) => summary.project.id === selectedProjectId
+    );
+    if (!selectedProjectIsVisible) {
       setSelectedProjectId(filteredSummaries[0].project.id);
     }
   }, [filteredSummaries, selectedProjectId]);
@@ -745,6 +810,35 @@ export default function ProjectManagementMode({
   function clearMessages() {
     setError('');
     setMessage('');
+  }
+
+  function selectNextVisibleProject(excludedProjectId) {
+    const nextSummary = filteredSummaries.find(
+      (summary) => summary.project.id !== excludedProjectId
+    );
+    setSelectedProjectId(nextSummary?.project.id || null);
+  }
+
+  function clearProjectEditing(projectId) {
+    if (editingProjectId === projectId) {
+      setEditingProjectId(null);
+      setProjectForm({
+        ...EMPTY_PROJECT_FORM,
+        categoryId: selectedCategoryId !== 'all' ? selectedCategoryId : ''
+      });
+    }
+    if (taskForm.projectId === projectId) {
+      setTaskForm((current) => ({ ...current, projectId: '', milestoneId: '' }));
+    }
+  }
+
+  function scrollEditorIntoView() {
+    requestAnimationFrame(() => {
+      editorPanelRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    });
   }
 
   function setProjectField(field, value) {
@@ -935,6 +1029,30 @@ export default function ProjectManagementMode({
       priority: project.priority || 'medium',
       estimatedTotalMinutes: project.estimatedTotalMinutes || 0
     });
+    scrollEditorIntoView();
+  }
+
+  async function updateProjectStatus(project, status) {
+    const successMessage =
+      status === 'completed'
+        ? 'タスクを完了しました。'
+        : status === 'paused'
+          ? 'タスクを一時停止しました。'
+          : 'タスクの状態を更新しました。';
+    const dialogueCategory = status === 'completed' ? 'project_completed' : 'project_updated';
+    const result = await runAction(
+      () => projectState.updateProject(project.id, { status }),
+      successMessage,
+      dialogueCategory
+    );
+    if (!result) {
+      return;
+    }
+    if (status === 'completed') {
+      setStatusFilter((current) => (current === 'completed' ? current : 'active'));
+      selectNextVisibleProject(project.id);
+      clearProjectEditing(project.id);
+    }
   }
 
   async function deleteProject(project) {
@@ -949,12 +1067,15 @@ export default function ProjectManagementMode({
       setError('削除方法は deleteAll / keepTasks / cancel のいずれかを入力してください。');
       return;
     }
-    await runAction(
+    const result = await runAction(
       () => projectState.deleteProject(project.id, answer),
       'タスクを削除しました。',
       'project_deleted'
     );
-    setSelectedProjectId(null);
+    if (result) {
+      selectNextVisibleProject(project.id);
+      clearProjectEditing(project.id);
+    }
   }
 
   async function submitMilestone(event) {
@@ -1000,6 +1121,7 @@ export default function ProjectManagementMode({
       milestoneId: taskForm.milestoneId || null,
       startDate: taskForm.startDate || null,
       scheduledDate: taskForm.scheduledDate || null,
+      time: taskForm.time || null,
       estimatedMinutes: Number(taskForm.estimatedMinutes),
       importance: Number(taskForm.importance),
       difficulty: Number(taskForm.difficulty),
@@ -1034,6 +1156,7 @@ export default function ProjectManagementMode({
       milestoneId: task.milestoneId || '',
       startDate: task.startDate || '',
       deadline: task.deadline || '',
+      time: task.time || '',
       scheduledDate: task.scheduledDate || '',
       estimatedMinutes: task.estimatedMinutes || pSettings.defaultSessionMinutes || 45,
       importance: task.importance || 3,
@@ -1042,6 +1165,7 @@ export default function ProjectManagementMode({
       status: task.status || 'not_started',
       dependencyTaskIds: task.dependencyTaskIds || []
     });
+    scrollEditorIntoView();
   }
 
   async function deleteTask(task) {
@@ -1052,11 +1176,19 @@ export default function ProjectManagementMode({
   }
 
   async function completeTask(task, completed = true) {
-    await runAction(
+    const result = await runAction(
       () => projectState.completeProjectTask(task.id, completed),
       completed ? 'Todoを完了しました。' : 'Todoを未完了に戻しました。',
       completed ? 'project_task_completed' : 'project_task_updated'
     );
+    if (result && completed && editingTaskId === task.id) {
+      setEditingTaskId(null);
+      setTaskForm({
+        ...EMPTY_TASK_FORM,
+        projectId: task.projectId || selectedSummary?.project.id || '',
+        estimatedMinutes: pSettings.defaultSessionMinutes || 45
+      });
+    }
   }
 
   function startSplitTask(task) {
@@ -1070,16 +1202,21 @@ export default function ProjectManagementMode({
       milestoneId: task.milestoneId || '',
       startDate: today,
       deadline: task.deadline || '',
+      time: task.time || '',
       scheduledDate: today,
       estimatedMinutes: Math.min(60, task.estimatedMinutes || 60),
       importance: task.importance || 3,
       difficulty: task.difficulty || 3,
       dependencyTaskIds: task.dependencyTaskIds || []
     });
+    scrollEditorIntoView();
   }
 
   const selectedTasks = selectedSummary?.tasks || [];
   const filteredTasks = selectedTasks.filter((task) => {
+    if (taskFilter === 'active') {
+      return task.status !== 'completed';
+    }
     if (taskFilter === 'all') {
       return true;
     }
@@ -1129,7 +1266,7 @@ export default function ProjectManagementMode({
           summaries.reduce((total, summary) => total + (summary.project.progress || 0), 0) /
             summaries.length
         );
-  const compactSummaries = [...summaries]
+  const compactSummaries = [...activeSummaries]
     .sort((left, right) => {
       const riskOrder = { delayed: 0, danger: 1, warning: 2, safe: 3 };
       const riskCompare =
@@ -1142,7 +1279,7 @@ export default function ProjectManagementMode({
       );
     })
     .slice(0, 4);
-  const alertSummaries = summaries
+  const alertSummaries = activeSummaries
     .filter((summary) => ['overdue', 'urgent', 'warning', 'watch'].includes(summary.deadline.state))
     .slice(0, 3);
   const blockedTodoCount = projectState.projectTasks.filter(
@@ -1196,21 +1333,124 @@ export default function ProjectManagementMode({
           ? 'warning'
           : 'safe';
 
+  function handleCompactCollapsedKeyDown(event) {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+    event.preventDefault();
+    setCompactCollapsed(false);
+  }
+
+  function rememberCompactFrameHeight() {
+    const height = Math.ceil(compactPanelRef.current?.getBoundingClientRect().height || 0);
+    if (Number.isFinite(height) && height > 0) {
+      setCompactFrameHeight(height);
+    }
+  }
+
+  function collapseCompactPanel() {
+    rememberCompactFrameHeight();
+    setCompactCollapsed(true);
+  }
+
+  function handleCompactPointerDown(event) {
+    if (event.button !== 0) {
+      compactPointerStartRef.current = null;
+      return;
+    }
+    compactPointerStartRef.current = {
+      x: event.clientX,
+      y: event.clientY
+    };
+  }
+
+  function handleCompactPanelClick(event) {
+    if (event.target.closest(COMPACT_COLLAPSE_IGNORE_SELECTOR)) {
+      return;
+    }
+    const start = compactPointerStartRef.current;
+    compactPointerStartRef.current = null;
+    if (
+      start &&
+      (Math.abs(event.clientX - start.x) > 6 || Math.abs(event.clientY - start.y) > 6)
+    ) {
+      return;
+    }
+    collapseCompactPanel();
+  }
+
   if (compact) {
+    const compactShellStyle = compactFrameHeight
+      ? { '--compact-reserved-height': `${compactFrameHeight}px` }
+      : undefined;
+
+    if (compactCollapsed) {
+      return (
+        <div
+          className="project-compact-shell project-compact-shell--collapsed"
+          style={compactShellStyle}
+        >
+          <section
+            className="project-mode project-mode--compact project-mode--compact-collapsed"
+            data-interactive="true"
+            role="button"
+            tabIndex={0}
+            aria-expanded="false"
+            aria-label="長期プロジェクト進捗を開く"
+            onClick={() => setCompactCollapsed(false)}
+            onKeyDown={handleCompactCollapsedKeyDown}
+          >
+            <div className="project-compact-collapsed__title">
+              <span>PROJECT PROGRESS</span>
+              <strong>長期プロジェクト進捗</strong>
+              <small>クリックで開く</small>
+            </div>
+            <div className="project-compact-collapsed__stats" aria-hidden="true">
+              <b>{averageProgress}%</b>
+              <span>進行中 {activeSummaries.length}件</span>
+              <span>Todo {incompleteTodoCount}件</span>
+            </div>
+          </section>
+        </div>
+      );
+    }
+
     return (
+      <div className="project-compact-shell" style={compactShellStyle}>
       <section
+        ref={compactPanelRef}
         className="project-mode project-mode--compact"
         data-interactive="true"
+        aria-expanded="true"
         aria-label="長期プロジェクト進捗サマリー"
+        onPointerDown={handleCompactPointerDown}
+        onClick={handleCompactPanelClick}
       >
         <header className="project-mode__header project-mode__header--compact">
-          <div>
+          <button
+            type="button"
+            className="project-compact-title-button"
+            onClick={collapseCompactPanel}
+            aria-label="長期プロジェクト進捗を折り畳む"
+          >
             <span>PROJECT PROGRESS</span>
             <h2>長期プロジェクト進捗</h2>
-          </div>
-          <button type="button" onClick={() => window.taskMate.openSettings()}>
-            レビューを開く
+            <small>クリックで折り畳む</small>
           </button>
+          <div className="project-mode__header-actions">
+            <button type="button" onClick={collapseCompactPanel}>
+              折り畳む
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                window.taskMate.openSettings();
+              }}
+            >
+              レビューを開く
+            </button>
+          </div>
         </header>
 
         {projectState.error && (
@@ -1302,6 +1542,7 @@ export default function ProjectManagementMode({
           </section>
         )}
       </section>
+      </div>
     );
   }
 
@@ -1330,6 +1571,7 @@ export default function ProjectManagementMode({
           <label>
             状態
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+              <option value="active">完了以外</option>
               <option value="all">すべて</option>
               <option value="not_started">未着手</option>
               <option value="in_progress">進行中</option>
@@ -1360,7 +1602,10 @@ export default function ProjectManagementMode({
             <h3>かんたん作成</h3>
             <small>目的と期限だけ入れると、段階とTodoを仮作成します。</small>
           </div>
-          <button type="button" onClick={() => setEditorPanel('project')}>
+          <button type="button" onClick={() => {
+            setEditorPanel('project');
+            scrollEditorIntoView();
+          }}>
             手入力で作る
           </button>
         </div>
@@ -1588,25 +1833,13 @@ export default function ProjectManagementMode({
                     <button type="button" onClick={() => startEditProject(selectedSummary.project)}>編集</button>
                     <button
                       type="button"
-                      onClick={() =>
-                        runAction(
-                          () => projectState.updateProject(selectedSummary.project.id, { status: 'paused' }),
-                          'タスクを一時停止しました。',
-                          'project_updated'
-                        )
-                      }
+                      onClick={() => updateProjectStatus(selectedSummary.project, 'paused')}
                     >
                       一時停止
                     </button>
                     <button
                       type="button"
-                      onClick={() =>
-                        runAction(
-                          () => projectState.updateProject(selectedSummary.project.id, { status: 'completed' }),
-                          'タスクを完了しました。',
-                          'project_completed'
-                        )
-                      }
+                      onClick={() => updateProjectStatus(selectedSummary.project, 'completed')}
                     >
                       完了
                     </button>
@@ -1704,6 +1937,7 @@ export default function ProjectManagementMode({
                   </div>
                   <label className="project-inline-filter">表示
                     <select value={taskFilter} onChange={(event) => setTaskFilter(event.target.value)}>
+                      <option value="active">未完了</option>
                       <option value="all">すべて</option>
                       <option value="not_started">未着手</option>
                       <option value="in_progress">進行中</option>
@@ -1761,6 +1995,7 @@ export default function ProjectManagementMode({
                       </div>
                       <div className="project-task-card__meta">
                         <span>{remainingDaysLabel(deadline)}</span>
+                        {task.time && <span>{task.time}</span>}
                         <span>{formatMinutes(task.estimatedMinutes)}</span>
                         <span>重要度 {task.importance}</span>
                         <span>難易度 {task.difficulty}</span>
@@ -1797,7 +2032,7 @@ export default function ProjectManagementMode({
             </section>
           )}
 
-          <section className="project-panel project-editor">
+          <section className="project-panel project-editor" ref={editorPanelRef}>
             <div className="project-panel__heading">
               <div>
                 <h3>登録/編集ドック</h3>
@@ -1907,6 +2142,7 @@ export default function ProjectManagementMode({
                 </select></label>
                 <label>開始可能日<input type="date" value={taskForm.startDate} onChange={(event) => setTaskField('startDate', event.target.value)} /></label>
                 <label>期限<input type="date" value={taskForm.deadline} onChange={(event) => setTaskField('deadline', event.target.value)} required /></label>
+                <label>時刻<input type="time" value={taskForm.time} onChange={(event) => setTaskField('time', event.target.value)} /></label>
                 <label>予定実施日<input type="date" value={taskForm.scheduledDate} onChange={(event) => setTaskField('scheduledDate', event.target.value)} /></label>
                 <label>予想分<input type="number" min="1" value={taskForm.estimatedMinutes} onChange={(event) => setTaskField('estimatedMinutes', event.target.value)} /></label>
                 <label>重要度<input type="number" min="1" max="5" value={taskForm.importance} onChange={(event) => setTaskField('importance', event.target.value)} /></label>

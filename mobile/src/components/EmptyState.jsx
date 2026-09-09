@@ -1,5 +1,6 @@
 const React = require('react');
 const { StyleSheet, Text, View } = require('react-native');
+const { colors, radius } = require('../theme/taskMateTheme');
 
 function EmptyState({ title, body }) {
   return (
@@ -13,19 +14,19 @@ function EmptyState({ title, body }) {
 const styles = StyleSheet.create({
   container: {
     padding: 18,
-    borderRadius: 8,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#CAD8C7',
-    backgroundColor: '#F7FBF4'
+    borderColor: colors.border,
+    backgroundColor: colors.cardSoft
   },
   title: {
-    color: '#24352A',
+    color: colors.text,
     fontSize: 16,
     fontWeight: '800'
   },
   body: {
     marginTop: 6,
-    color: '#53645A',
+    color: colors.textMuted,
     fontSize: 14,
     lineHeight: 20
   }

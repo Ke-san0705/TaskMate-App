@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { chooseDialogue, fillDialogue, normalizeDialogues } = require('../behavior/dialogueEngine');
+const { chooseDialogue, fillDialogue, normalizeDialogues } = require('../characters/guideDialogue');
 
 test('セリフ変数を置換する', () => {
   assert.equal(fillDialogue('「{title}」まであと{minutes}分', {
@@ -10,12 +10,14 @@ test('セリフ変数を置換する', () => {
 });
 
 test('直前と同じセリフを避ける', () => {
-  const dialogues = { calm: ['A', 'B'] };
-  assert.equal(chooseDialogue(dialogues, 'calm', 'A', () => 0), 'B');
+  const dialogues = { ready: ['A', 'B'] };
+  assert.equal(chooseDialogue(dialogues, 'ready', 'A', () => 0), 'B');
 });
 
 test('壊れたdialoguesを安全に正規化する', () => {
-  assert.deepEqual(normalizeDialogues({ calm: [' ok ', '', 10], bad: 'x' }), {
-    calm: ['ok']
-  });
+  assert.deepEqual(normalizeDialogues({ ready: [' ok ', '', 10], bad: 'x' }).ready, ['ok']);
+  assert.deepEqual(normalizeDialogues({ focusing: [' focus '] }).focusActive, [
+    'focus',
+    '今は「{taskTitle}」に取り組む時間だよ。'
+  ]);
 });

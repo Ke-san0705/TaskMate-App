@@ -1,11 +1,14 @@
 const React = require('react');
-const { Pressable, ScrollView, StyleSheet, Text, TextInput, View } = require('react-native');
+const { Pressable, ScrollView, StyleSheet, Text, View } = require('react-native');
 const { SafeAreaView } = require('react-native-safe-area-context');
 const EmptyState = require('../components/EmptyState');
 const ErrorBanner = require('../components/ErrorBanner');
+const JapaneseTextInput = require('../components/JapaneseTextInput');
+const LongTermTasksPanel = require('../components/LongTermTasksPanel');
 const TaskCard = require('../components/TaskCard');
 const { useTaskMate } = require('../context/TaskMateContext');
 const { ROUTES } = require('../constants/routes');
+const { colors, radius, spacing, typography } = require('../theme/taskMateTheme');
 
 function Section({ title, tasks, children }) {
   return (
@@ -27,13 +30,14 @@ function TasksScreen({ navigation }) {
     completeTask,
     deleteTask,
     error,
-    lifeState,
+    focusState,
     setError,
     setFocusTask,
     taskGroups,
     undoCompleteTask
   } = useTaskMate();
   const [filter, setFilter] = React.useState('');
+  const [mode, setMode] = React.useState('tasks');
   const normalizedFilter = filter.trim().toLowerCase();
 
   function visible(items) {
@@ -61,17 +65,41 @@ function TasksScreen({ navigation }) {
             <Text style={styles.eyebrow}>TASKS</Text>
             <Text style={styles.title}>タスク</Text>
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="タスクを追加する"
-            style={styles.addButton}
-            onPress={() => navigation.navigate(ROUTES.TaskEdit)}
-          >
-            <Text style={styles.addText}>追加</Text>
-          </Pressable>
+          {mode === 'tasks' ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="タスクを追加する"
+              style={styles.addButton}
+              onPress={() => navigation.navigate(ROUTES.TaskEdit)}
+            >
+              <Text style={styles.addText}>追加</Text>
+            </Pressable>
+          ) : null}
         </View>
 
-        <TextInput
+        <View style={styles.modeSwitch}>
+          {[
+            ['tasks', '通常タスク'],
+            ['projects', '長期タスク']
+          ].map(([value, label]) => {
+            const active = mode === value;
+            return (
+              <Pressable
+                key={value}
+                accessibilityRole="button"
+                accessibilityLabel={`${label}を表示する`}
+                onPress={() => setMode(value)}
+                style={[styles.modeButton, active && styles.modeButtonActive]}
+              >
+                <Text style={[styles.modeText, active && styles.modeTextActive]}>
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <JapaneseTextInput
           accessibilityLabel="タスクを絞り込む"
           value={filter}
           onChangeText={setFilter}
@@ -79,26 +107,33 @@ function TasksScreen({ navigation }) {
           style={styles.search}
         />
 
-        {sections.map(([title, items]) => (
-          <Section key={title} title={title} tasks={items}>
-            <View style={styles.list}>
-              {items.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  focusTaskId={lifeState?.focusTaskId}
-                  onComplete={completeTask}
-                  onUndo={undoCompleteTask}
-                  onDelete={deleteTask}
-                  onFocus={setFocusTask}
-                  onEdit={(selected) =>
-                    navigation.navigate(ROUTES.TaskEdit, { taskId: selected.id })
-                  }
-                />
-              ))}
-            </View>
-          </Section>
-        ))}
+        {mode === 'tasks' ? (
+          sections.map(([title, items]) => (
+            <Section key={title} title={title} tasks={items}>
+              <View style={styles.list}>
+                {items.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    focusTaskId={focusState?.currentTaskId}
+                    onComplete={completeTask}
+                    onUndo={undoCompleteTask}
+                    onDelete={deleteTask}
+                    onFocus={setFocusTask}
+                    onStartFocus={(selected) =>
+                      navigation.navigate(ROUTES.FocusSetup, { taskId: selected.id })
+                    }
+                    onEdit={(selected) =>
+                      navigation.navigate(ROUTES.TaskEdit, { taskId: selected.id })
+                    }
+                  />
+                ))}
+              </View>
+            </Section>
+          ))
+        ) : (
+          <LongTermTasksPanel navigation={navigation} taskFilter={filter} />
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -107,12 +142,12 @@ function TasksScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#F6FAF3'
+    backgroundColor: colors.backgroundSoft
   },
   container: {
-    padding: 16,
-    gap: 16,
-    paddingBottom: 120
+    padding: spacing.screen,
+    gap: spacing.section,
+    paddingBottom: spacing.bottomTabPadding
   },
   header: {
     flexDirection: 'row',
@@ -120,45 +155,65 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   eyebrow: {
-    color: '#5E6F60',
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 1
+    ...typography.eyebrow
   },
   title: {
-    color: '#1F2A22',
-    fontSize: 28,
-    fontWeight: '900'
+    ...typography.screenTitle
   },
   addButton: {
     paddingVertical: 11,
     paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#315C3A'
+    borderRadius: radius.md,
+    backgroundColor: colors.primary
   },
   addText: {
     color: '#FFFFFF',
     fontWeight: '900'
   },
+  modeSwitch: {
+    flexDirection: 'row',
+    padding: 4,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card
+  },
+  modeButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: radius.sm
+  },
+  modeButtonActive: {
+    backgroundColor: colors.primary
+  },
+  modeText: {
+    color: colors.primary,
+    fontWeight: '900'
+  },
+  modeTextActive: {
+    color: colors.white
+  },
   search: {
     minHeight: 46,
-    borderRadius: 8,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#B9C8B7',
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.card,
     paddingHorizontal: 12,
+    color: colors.text,
     fontSize: 15
   },
   section: {
     gap: 10
   },
   sectionTitle: {
-    color: '#1F2A22',
+    color: colors.text,
     fontSize: 18,
     fontWeight: '900'
   },
   count: {
-    color: '#5E6F60',
+    color: colors.textMuted,
     fontSize: 14
   },
   list: {

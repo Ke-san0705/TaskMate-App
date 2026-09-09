@@ -2,7 +2,15 @@ const React = require('react');
 const { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } = require('react-native');
 const { SafeAreaView } = require('react-native-safe-area-context');
 const ErrorBanner = require('../components/ErrorBanner');
+const TimeWheelInput = require('../components/TimeWheelInput');
+const UnlockModeSettingsCard = require('../components/UnlockModeSettingsCard');
 const { useTaskMate } = require('../context/TaskMateContext');
+const { ROUTES } = require('../constants/routes');
+const {
+  ACCESSIBILITY_DISCLOSURE,
+  hasAcceptedAccessibilityDisclosure
+} = require('../constants/focusDisclosure');
+const { colors, radius, shadows, spacing, typography } = require('../theme/taskMateTheme');
 
 function Row({ title, body, children }) {
   return (
@@ -16,20 +24,53 @@ function Row({ title, body, children }) {
   );
 }
 
-function SettingsScreen() {
+function StatusBadge({ enabled, enabledText, disabledText }) {
+  return (
+    <Text style={[styles.statusBadge, enabled ? styles.statusOn : styles.statusOff]}>
+      {enabled ? enabledText : disabledText}
+    </Text>
+  );
+}
+
+function SettingsScreen({ navigation }) {
   const {
     deleteAllLocalData,
     error,
+    focusPermissions,
+    focusState,
+    openAccessibilitySettings,
     requestNotifications,
-    resetLifeState,
+    selectedCharacter,
     setError,
     settings,
     updateSettings
   } = useTaskMate();
   const [message, setMessage] = React.useState('');
+  const disclosureAccepted = hasAcceptedAccessibilityDisclosure(settings);
+  const [consentChecked, setConsentChecked] = React.useState(disclosureAccepted);
+
+  React.useEffect(() => {
+    if (disclosureAccepted) {
+      setConsentChecked(true);
+    }
+  }, [disclosureAccepted]);
 
   if (!settings) {
     return null;
+  }
+
+  async function acceptAndOpenAccessibility() {
+    if (!disclosureAccepted && !consentChecked) {
+      Alert.alert('確認してください', ACCESSIBILITY_DISCLOSURE.consentLabel);
+      return;
+    }
+    if (!disclosureAccepted) {
+      await updateSettings({
+        focusAccessibilityDisclosureAcceptedAt: new Date().toISOString()
+      });
+      setMessage('ユーザー補助の利用に同意しました。');
+    }
+    await openAccessibilitySettings();
   }
 
   async function toggle(key, value) {
@@ -55,6 +96,7 @@ function SettingsScreen() {
         <Text style={styles.title}>設定</Text>
 
         <View style={styles.card}>
+          <Text style={styles.sectionTitle}>通知</Text>
           <Row
             title="通知"
             body="時刻ありタスクだけ、締切前と締切時刻にローカル通知を登録します。"
@@ -92,72 +134,7 @@ function SettingsScreen() {
             }}
             style={styles.input}
           />
-        </View>
-
-        <View style={styles.card}>
-          <Row title="生活状態表現" body="キャラクターのふるまいと吹き出しを状況へ連動します。">
-            <Switch
-              accessibilityLabel="生活状態表現を有効にする"
-              value={settings.behaviorEnabled}
-              onValueChange={(value) => toggle('behaviorEnabled', value)}
-            />
-          </Row>
-          <Row title="周辺エフェクト" body="背景の雰囲気を控えめに表示します。">
-            <Switch
-              accessibilityLabel="周辺エフェクトを有効にする"
-              value={settings.ambientEffects}
-              onValueChange={(value) => toggle('ambientEffects', value)}
-            />
-          </Row>
-          <Row title="完了リアクション" body="完了時に少しだけ表情を変えます。">
-            <Switch
-              accessibilityLabel="完了リアクションを有効にする"
-              value={settings.completionReactions}
-              onValueChange={(value) => toggle('completionReactions', value)}
-            />
-          </Row>
-          <Row title="継続関係の記憶" body="利用日数と完了数から関係段階を育てます。">
-            <Switch
-              accessibilityLabel="継続関係の記憶を有効にする"
-              value={settings.relationshipMemoryEnabled}
-              onValueChange={(value) => toggle('relationshipMemoryEnabled', value)}
-            />
-          </Row>
-          <Row title="モーション軽減" body="動きのある表現をできるだけ抑えます。">
-            <Switch
-              accessibilityLabel="モーション軽減を有効にする"
-              value={settings.reduceMotion}
-              onValueChange={(value) => toggle('reduceMotion', value)}
-            />
-          </Row>
-          <Text style={styles.label}>ふるまいの強さ</Text>
-          <View style={styles.segment}>
-            {['low', 'normal', 'high'].map((value) => (
-              <Pressable
-                key={value}
-                accessibilityRole="button"
-                accessibilityLabel={`ふるまいの強さ ${value}`}
-                style={[
-                  styles.segmentButton,
-                  settings.behaviorIntensity === value && styles.segmentActive
-                ]}
-                onPress={() => updateSettings({ behaviorIntensity: value })}
-              >
-                <Text
-                  style={[
-                    styles.segmentText,
-                    settings.behaviorIntensity === value && styles.segmentTextActive
-                  ]}
-                >
-                  {value}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.card}>
-          <Row title="静かな時間帯" body="自発的なセリフを抑えます。通知は通知設定に従います。">
+          <Row title="静かな時間帯" body="通知以外の案内を控えめにします。">
             <Switch
               accessibilityLabel="静かな時間帯を有効にする"
               value={settings.quietHours?.enabled !== false}
@@ -167,19 +144,19 @@ function SettingsScreen() {
           <View style={styles.timeRow}>
             <View style={styles.timeInput}>
               <Text style={styles.label}>開始</Text>
-              <TextInput
+              <TimeWheelInput
                 accessibilityLabel="静かな時間の開始"
                 value={settings.quietHours?.start || '22:00'}
-                onChangeText={(value) => updateQuietHours({ start: value })}
+                onChange={(value) => updateQuietHours({ start: value || '22:00' })}
                 style={styles.input}
               />
             </View>
             <View style={styles.timeInput}>
               <Text style={styles.label}>終了</Text>
-              <TextInput
+              <TimeWheelInput
                 accessibilityLabel="静かな時間の終了"
                 value={settings.quietHours?.end || '07:00'}
-                onChangeText={(value) => updateQuietHours({ end: value })}
+                onChange={(value) => updateQuietHours({ end: value || '07:00' })}
                 style={styles.input}
               />
             </View>
@@ -187,19 +164,100 @@ function SettingsScreen() {
         </View>
 
         <View style={styles.card}>
+          <Text style={styles.sectionTitle}>集中</Text>
+          <Row title="アプリ制限" body="集中中に選んだアプリを開いたらTaskMateへ戻します。">
+            <Switch
+              accessibilityLabel="アプリ制限を有効にする"
+              value={settings.focusRestrictionEnabled !== false}
+              onValueChange={(value) => toggle('focusRestrictionEnabled', value)}
+            />
+          </Row>
+          <View style={styles.permissionGrid}>
+            <View style={styles.permissionItem}>
+              <Text style={styles.permissionLabel}>ユーザー補助</Text>
+              <StatusBadge
+                enabled={focusPermissions.accessibility}
+                enabledText="有効"
+                disabledText="未設定"
+              />
+            </View>
+          </View>
+          <View style={styles.disclosureBox}>
+            <Text style={styles.disclosureTitle}>{ACCESSIBILITY_DISCLOSURE.title}</Text>
+            {ACCESSIBILITY_DISCLOSURE.paragraphs.map((paragraph) => (
+              <Text key={paragraph} style={styles.disclosureText}>
+                {paragraph}
+              </Text>
+            ))}
+            {disclosureAccepted ? (
+              <Text style={styles.acceptedText}>同意済みです。</Text>
+            ) : (
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: consentChecked }}
+                accessibilityLabel={ACCESSIBILITY_DISCLOSURE.consentLabel}
+                style={styles.consentRow}
+                onPress={() => setConsentChecked((current) => !current)}
+              >
+                <View style={[styles.checkbox, consentChecked && styles.checkboxSelected]}>
+                  {consentChecked ? <Text style={styles.checkboxText}>✓</Text> : null}
+                </View>
+                <Text style={styles.consentText}>{ACCESSIBILITY_DISCLOSURE.consentLabel}</Text>
+              </Pressable>
+            )}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                disclosureAccepted ? 'ユーザー補助設定を開く' : '同意してユーザー補助設定を開く'
+              }
+              style={styles.secondaryFull}
+              onPress={acceptAndOpenAccessibility}
+            >
+              <Text style={styles.secondaryText}>ユーザー補助設定を開く</Text>
+            </Pressable>
+          </View>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="関係記憶をリセットする"
-            style={styles.warningFull}
-            onPress={() =>
-              Alert.alert('関係記憶をリセットしますか？', 'タスクと設定は残ります。', [
-                { text: 'キャンセル', style: 'cancel' },
-                { text: 'リセット', style: 'destructive', onPress: resetLifeState }
-              ])
-            }
+            accessibilityLabel="制限するアプリを選ぶ"
+            style={styles.primaryFull}
+            onPress={() => navigation.navigate(ROUTES.FocusSetup)}
           >
-            <Text style={styles.warningText}>関係記憶をリセット</Text>
+            <Text style={styles.primaryText}>
+              制限アプリを選ぶ {focusState.blockedApps.filter((app) => app.enabled).length}件
+            </Text>
           </Pressable>
+        </View>
+
+        <UnlockModeSettingsCard />
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>表示</Text>
+          <Row title="モーション軽減" body="完了や画面切り替えの動きを控えめにします。">
+            <Switch
+              accessibilityLabel="モーション軽減を有効にする"
+              value={settings.reduceMotion}
+              onValueChange={(value) => toggle('reduceMotion', value)}
+            />
+          </Row>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>キャラクター</Text>
+          <Text style={styles.privacy}>
+            選択中: {selectedCharacter?.name || 'TaskMate'}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="キャラクター画面を開く"
+            style={styles.secondaryFull}
+            onPress={() => navigation.navigate(ROUTES.Tabs, { screen: ROUTES.Characters })}
+          >
+            <Text style={styles.secondaryText}>キャラクターを選ぶ</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>データ</Text>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="すべてのローカルデータを削除する"
@@ -207,7 +265,7 @@ function SettingsScreen() {
             onPress={() =>
               Alert.alert(
                 'すべて削除しますか？',
-                'タスク、設定、関係記憶、カスタムキャラクターを端末内から削除します。',
+                'タスク、設定、集中履歴、カスタムキャラクターを端末内から削除します。',
                 [
                   { text: 'キャンセル', style: 'cancel' },
                   { text: 'すべて削除', style: 'destructive', onPress: deleteAllLocalData }
@@ -218,9 +276,15 @@ function SettingsScreen() {
             <Text style={styles.dangerText}>すべてのローカルデータを削除</Text>
           </Pressable>
           <Text style={styles.privacy}>
-            TaskMate Mobileは、タスク・設定・キャラクターを端末内に保存します。広告、課金、
-            テレメトリー、外部API送信はこのMVPでは使用していません。
+            TaskMate v2はローカルファーストです。タスク、集中状態、制限アプリは端末内に保存し、
+            外部サーバーへ送信しません。
           </Text>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>アプリ情報</Text>
+          <Text style={styles.privacy}>TaskMate Mobile 2.0.0</Text>
+          <Text style={styles.privacy}>広告なし、課金なし、アカウントなし。</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -230,38 +294,40 @@ function SettingsScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#F6FAF3'
+    backgroundColor: colors.backgroundSoft
   },
   container: {
-    padding: 16,
-    gap: 14,
-    paddingBottom: 120
+    padding: spacing.screen,
+    gap: spacing.section,
+    paddingBottom: spacing.bottomTabPadding
   },
   eyebrow: {
-    color: '#5E6F60',
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 1
+    ...typography.eyebrow,
+    letterSpacing: 0
   },
   title: {
-    color: '#1F2A22',
-    fontSize: 28,
-    fontWeight: '900'
+    ...typography.screenTitle
   },
   message: {
     padding: 10,
-    borderRadius: 8,
-    color: '#315C3A',
-    backgroundColor: '#E7F2DF',
+    borderRadius: radius.sm,
+    color: colors.primary,
+    backgroundColor: colors.primarySoft,
     fontWeight: '800'
   },
+  sectionTitle: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: '900'
+  },
   card: {
-    padding: 14,
-    borderRadius: 8,
+    padding: 16,
+    borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: '#D5DED3',
-    backgroundColor: '#FFFFFF',
-    gap: 12
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    gap: 14,
+    ...shadows.soft
   },
   row: {
     flexDirection: 'row',
@@ -273,27 +339,28 @@ const styles = StyleSheet.create({
     flex: 1
   },
   rowTitle: {
-    color: '#1F2A22',
+    color: colors.text,
     fontSize: 16,
     fontWeight: '900'
   },
   rowBody: {
     marginTop: 3,
-    color: '#5A675E',
+    color: colors.textMuted,
     lineHeight: 19
   },
   label: {
-    color: '#334337',
+    color: colors.text,
     fontSize: 13,
     fontWeight: '800'
   },
   input: {
     minHeight: 44,
     borderWidth: 1,
-    borderColor: '#B9C8B7',
-    borderRadius: 8,
+    borderColor: colors.borderStrong,
+    borderRadius: radius.sm,
     paddingHorizontal: 12,
-    backgroundColor: '#FFFFFF',
+    color: colors.text,
+    backgroundColor: colors.card,
     fontSize: 15
   },
   timeRow: {
@@ -304,64 +371,128 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 6
   },
-  segment: {
-    flexDirection: 'row',
+  permissionGrid: {
+    gap: 10
+  },
+  permissionItem: {
+    flex: 1,
+    padding: 12,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.cardSoft,
     gap: 8
   },
-  segmentButton: {
-    flex: 1,
+  permissionLabel: {
+    color: colors.text,
+    fontWeight: '900'
+  },
+  statusBadge: {
+    alignSelf: 'flex-start',
+    overflow: 'hidden',
+    paddingVertical: 5,
+    paddingHorizontal: 9,
+    borderRadius: radius.sm,
+    fontSize: 12,
+    fontWeight: '900'
+  },
+  statusOn: {
+    color: colors.primary,
+    backgroundColor: colors.primarySoft
+  },
+  statusOff: {
+    color: colors.dangerText,
+    backgroundColor: colors.dangerSoft
+  },
+  disclosureBox: {
+    gap: 10
+  },
+  disclosureTitle: {
+    color: colors.text,
+    fontWeight: '900'
+  },
+  disclosureText: {
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 20
+  },
+  consentRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     padding: 10,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: '#A8B8A4',
-    alignItems: 'center'
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.cardSoft
   },
-  segmentActive: {
-    backgroundColor: '#315C3A',
-    borderColor: '#315C3A'
+  checkbox: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: colors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
-  segmentText: {
-    color: '#315C3A',
+  checkboxSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary
+  },
+  checkboxText: {
+    color: colors.white,
+    fontWeight: '900'
+  },
+  consentText: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 19
+  },
+  acceptedText: {
+    color: colors.primary,
+    fontSize: 13,
     fontWeight: '800'
   },
-  segmentTextActive: {
-    color: '#FFFFFF'
+  primaryFull: {
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: radius.sm,
+    backgroundColor: colors.primary
+  },
+  primaryText: {
+    color: '#FFFFFF',
+    fontWeight: '900'
   },
   secondaryFull: {
     alignItems: 'center',
     padding: 12,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: '#A8B8A4'
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.card
   },
   secondaryText: {
-    color: '#315C3A',
-    fontWeight: '900'
-  },
-  warningFull: {
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#F5E5B8'
-  },
-  warningText: {
-    color: '#5E4514',
+    color: colors.primary,
     fontWeight: '900'
   },
   dangerFull: {
     alignItems: 'center',
     padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#8E2F2F'
+    borderRadius: radius.sm,
+    backgroundColor: colors.danger
   },
   dangerText: {
     color: '#FFFFFF',
     fontWeight: '900'
   },
   privacy: {
-    color: '#516052',
+    color: colors.textMuted,
     fontSize: 13,
-    lineHeight: 19
+    lineHeight: 19,
+    flexShrink: 1
   }
 });
 

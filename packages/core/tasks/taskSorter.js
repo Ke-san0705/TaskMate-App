@@ -1,4 +1,4 @@
-const { classifyTask, compareDateKeys, localDateKey } = require('../behavior/taskPressureEngine');
+const { classifyTask, compareDateKeys, localDateKey } = require('./taskSchedule');
 
 function compareTaskSchedule(left, right) {
   const dateCompare = compareDateKeys(left.date, right.date);

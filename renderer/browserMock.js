@@ -71,6 +71,7 @@ export function installBrowserMock() {
   let projectTasks = [];
   let focusTaskId = null;
   let behaviorState = createBehaviorState();
+  let googleCalendarStatus = createGoogleCalendarStatus();
   const listeners = new Map();
 
   function emit(channel, payload) {
@@ -220,6 +221,67 @@ export function installBrowserMock() {
 
   function emitProjects() {
     emit('projects', projectState());
+  }
+
+  function createGoogleCalendarStatus(overrides = {}) {
+    const today = localDateKey();
+    return {
+      config: {
+        configured: true,
+        clientIdHint: 'mock...',
+        scopes: [
+          'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+          'https://www.googleapis.com/auth/calendar.events.readonly'
+        ]
+      },
+      connected: false,
+      settings: {
+        enabled: true,
+        showTodayOnHome: true,
+        hidePrivateDetails: true,
+        selectedCalendarIds: ['primary']
+      },
+      calendars: [
+        {
+          id: 'primary',
+          summary: 'メイン',
+          primary: true,
+          accessRole: 'owner',
+          backgroundColor: '#2f6f8f',
+          selected: true
+        }
+      ],
+      events: [
+        {
+          key: 'primary|mock-calendar-event',
+          id: 'mock-calendar-event',
+          calendarId: 'primary',
+          calendarSummary: 'メイン',
+          title: 'Googleカレンダーの予定確認',
+          date: today,
+          time: '10:00',
+          endDate: today,
+          endTime: '10:30',
+          allDay: false,
+          startText: '10:00',
+          endText: '10:30',
+          location: '',
+          htmlLink: '',
+          private: false,
+          taskId: null
+        }
+      ],
+      sync: {
+        lastSyncedAt: new Date().toISOString(),
+        error: null,
+        calendarErrors: []
+      },
+      ...overrides
+    };
+  }
+
+  function emitGoogleCalendar() {
+    emit('google-calendar', googleCalendarStatus);
   }
 
   function makeId(prefix) {
@@ -514,9 +576,95 @@ export function installBrowserMock() {
     deleteProjectTask,
     completeProjectTask,
     addProjectTaskToToday,
+    getGoogleCalendarStatus: async () => googleCalendarStatus,
+    saveGoogleCalendarProviderAuth: async (providerAuth) => {
+      googleCalendarStatus = {
+        ...googleCalendarStatus,
+        connected: true,
+        authSource: 'supabase-google',
+        connectedAccount: providerAuth?.accountEmail || '',
+        sync: {
+          ...googleCalendarStatus.sync,
+          lastSyncedAt: new Date().toISOString(),
+          error: null,
+          errorMessage: null
+        }
+      };
+      emitGoogleCalendar();
+      return googleCalendarStatus;
+    },
+    connectGoogleCalendar: async () => {
+      googleCalendarStatus = { ...googleCalendarStatus, connected: true };
+      emitGoogleCalendar();
+      return googleCalendarStatus;
+    },
+    disconnectGoogleCalendar: async () => {
+      googleCalendarStatus = createGoogleCalendarStatus();
+      emitGoogleCalendar();
+      return googleCalendarStatus;
+    },
+    syncGoogleCalendar: async () => {
+      googleCalendarStatus = {
+        ...googleCalendarStatus,
+        sync: {
+          ...googleCalendarStatus.sync,
+          lastSyncedAt: new Date().toISOString(),
+          error: null
+        }
+      };
+      emitGoogleCalendar();
+      return googleCalendarStatus;
+    },
+    updateGoogleCalendarSettings: async (partial) => {
+      googleCalendarStatus = {
+        ...googleCalendarStatus,
+        settings: {
+          ...googleCalendarStatus.settings,
+          ...partial
+        },
+        calendars: googleCalendarStatus.calendars.map((calendar) => ({
+          ...calendar,
+          selected: (partial.selectedCalendarIds || googleCalendarStatus.settings.selectedCalendarIds).includes(calendar.id)
+        }))
+      };
+      emitGoogleCalendar();
+      return googleCalendarStatus;
+    },
+    createTaskFromGoogleEvent: async (eventKey) => {
+      const event = googleCalendarStatus.events.find((candidate) => candidate.key === eventKey);
+      if (!event) {
+        throw new Error('Googleカレンダーの予定が見つかりません。');
+      }
+      const task = await addTask({
+        title: event.title,
+        description: `Googleカレンダー: ${event.calendarSummary}`,
+        date: event.date,
+        time: event.time,
+        genre: 'Googleカレンダー',
+        priority: 'normal'
+      });
+      googleCalendarStatus = {
+        ...googleCalendarStatus,
+        events: googleCalendarStatus.events.map((candidate) =>
+          candidate.key === eventKey ? { ...candidate, taskId: task.id } : candidate
+        )
+      };
+      emitGoogleCalendar();
+      return { task, tasks: [...tasks], status: googleCalendarStatus };
+    },
+    startSupabaseOAuthCallback: async () => ({
+      callbackId: 'browser-mock-callback',
+      redirectUri: `${window.location.origin}/?view=settings`,
+      expiresAt: Date.now() + 180000
+    }),
+    cancelSupabaseOAuthCallback: async () => ({ ok: true }),
+    validateSupabaseOAuthUrl: async () => ({ ok: true }),
+    openExternalUrl: async () => ({ ok: true }),
     onTasksUpdated: (callback) => subscribe('tasks', callback),
     onProjectsUpdated: (callback) => subscribe('projects', callback),
     onSettingsUpdated: (callback) => subscribe('settings', callback),
+    onGoogleCalendarUpdated: (callback) => subscribe('google-calendar', callback),
+    onSupabaseOAuthCallback: (callback) => subscribe('supabase-oauth-callback', callback),
     onBehaviorUpdated: (callback) => subscribe('behavior', callback),
     onNotification: (callback) => subscribe('notification', callback),
     onNotificationCleared: (callback) => subscribe('notification-cleared', callback),

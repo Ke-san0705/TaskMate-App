@@ -12,6 +12,15 @@ const { SafeAreaView } = require('react-native-safe-area-context');
 const { useTaskMate } = require('../context/TaskMateContext');
 const { messageFromError } = require('../utils/validation');
 
+const DIALOGUE_FIELDS = Object.freeze([
+  ['noTasks', 'タスクなし'],
+  ['ready', '通常案内'],
+  ['focusReady', '集中開始前'],
+  ['focusActive', '集中中'],
+  ['blocked', '制限アプリ検知'],
+  ['complete', '完了時']
+]);
+
 function CharacterEditScreen({ navigation, route }) {
   const {
     characters,
@@ -25,10 +34,12 @@ function CharacterEditScreen({ navigation, route }) {
   const [name, setName] = React.useState(character?.name || '');
   const [description, setDescription] = React.useState(character?.description || '');
   const [dialogues, setDialogues] = React.useState({
-    calm: character?.dialogues?.calm?.[0] || '',
-    focusing: character?.dialogues?.focusing?.[0] || '',
-    relieved: character?.dialogues?.relieved?.[0] || '',
-    celebrating: character?.dialogues?.celebrating?.[0] || ''
+    noTasks: character?.dialogues?.noTasks?.[0] || '',
+    ready: character?.dialogues?.ready?.[0] || '',
+    focusReady: character?.dialogues?.focusReady?.[0] || '',
+    focusActive: character?.dialogues?.focusActive?.[0] || '',
+    blocked: character?.dialogues?.blocked?.[0] || '',
+    complete: character?.dialogues?.complete?.[0] || ''
   });
   const [editingCharacter, setEditingCharacter] = React.useState(character);
   const [error, setError] = React.useState('');
@@ -100,6 +111,7 @@ function CharacterEditScreen({ navigation, route }) {
           value={name}
           onChangeText={setName}
           placeholder="名前"
+          placeholderTextColor="#8A9488"
           style={styles.input}
         />
 
@@ -109,6 +121,7 @@ function CharacterEditScreen({ navigation, route }) {
           value={description}
           onChangeText={setDescription}
           placeholder="どんなキャラクターか"
+          placeholderTextColor="#8A9488"
           style={[styles.input, styles.textarea]}
           multiline
         />
@@ -116,7 +129,7 @@ function CharacterEditScreen({ navigation, route }) {
         <View style={styles.imageActions}>
           {[
             ['wait', '通常画像'],
-            ['click', 'クリック画像'],
+            ['click', '完了画像'],
             ['alarm', '通知画像']
           ].map(([stateName, label]) => (
             <Pressable
@@ -131,16 +144,17 @@ function CharacterEditScreen({ navigation, route }) {
           ))}
         </View>
 
-        {Object.entries(dialogues).map(([key, value]) => (
+        {DIALOGUE_FIELDS.map(([key, label]) => (
           <View key={key}>
-            <Text style={styles.label}>セリフ: {key}</Text>
+            <Text style={styles.label}>セリフ: {label}</Text>
             <TextInput
-              accessibilityLabel={`${key}のセリフ`}
-              value={value}
+              accessibilityLabel={`${label}のセリフ`}
+              value={dialogues[key]}
               onChangeText={(next) =>
                 setDialogues((current) => ({ ...current, [key]: next }))
               }
               placeholder="短い応援の言葉"
+              placeholderTextColor="#8A9488"
               style={styles.input}
             />
           </View>

@@ -22,6 +22,9 @@ function validPoint(value) {
 function registerIpcHandlers({
   ipcMain,
   fileManager,
+  googleCalendarService,
+  oauthCallbackBridge,
+  shell,
   windowManager,
   scheduler,
   behaviorController,
@@ -146,6 +149,16 @@ function registerIpcHandlers({
     const settings = await fileManager.selectCharacter(characterName);
     await onSettingsChanged(settings);
     return settings;
+  });
+  handle(IPC.EXPORT_CHARACTER_PACK, (_event, characterName) =>
+    fileManager.exportCharacterPack(characterName)
+  );
+  handle(IPC.SAVE_CLOUD_CHARACTER_PACK, async (_event, characterPack) => {
+    if (!isPlainObject(characterPack)) {
+      throw new Error('キャラクターパックの形式が不正です。');
+    }
+    const result = await fileManager.saveCloudCharacterPack(characterPack);
+    return result;
   });
   handle(IPC.END_WINDOW_DRAG, async () => {
     const position = windowManager.endDrag();
@@ -313,6 +326,81 @@ function registerIpcHandlers({
     await emitProjectsUpdated();
     windowManager.sendTasksUpdated(await fileManager.getTasksResult());
     return result;
+  });
+  handle(IPC.GET_GOOGLE_CALENDAR_STATUS, () => googleCalendarService.status());
+  handle(IPC.CONNECT_GOOGLE_CALENDAR, () => googleCalendarService.connect());
+  handle(IPC.SAVE_GOOGLE_CALENDAR_PROVIDER_AUTH, async (_event, providerAuth) => {
+    if (!isPlainObject(providerAuth)) {
+      throw new Error('Googleアカウントのカレンダー権限情報が正しくありません。');
+    }
+    return googleCalendarService.connectWithProviderAuth(providerAuth);
+  });
+  handle(IPC.DISCONNECT_GOOGLE_CALENDAR, () => googleCalendarService.disconnect());
+  handle(IPC.SYNC_GOOGLE_CALENDAR, () => googleCalendarService.syncToday({ force: true }));
+  handle(IPC.UPDATE_GOOGLE_CALENDAR_SETTINGS, async (_event, partialSettings) => {
+    if (!isPlainObject(partialSettings)) {
+      throw new Error('Googleカレンダー設定が正しくありません。');
+    }
+    return googleCalendarService.updateSettings(partialSettings);
+  });
+  handle(IPC.CREATE_TASK_FROM_GOOGLE_EVENT, async (_event, eventKey) => {
+    if (typeof eventKey !== 'string' || eventKey.length > 500) {
+      throw new Error('Googleカレンダー予定IDが正しくありません。');
+    }
+    const result = await googleCalendarService.createTaskFromEvent(eventKey);
+    windowManager.sendTasksUpdated({ tasks: result.tasks, error: null });
+    windowManager.sendGoogleCalendarUpdated(result.status);
+    await behaviorController?.recordInteraction('task-create', { taskId: result.task.id });
+    await behaviorController?.notifyTaskMutation('google-calendar-task-create');
+    await scheduler.checkNow();
+    return result;
+  });
+  handle(IPC.START_SUPABASE_OAUTH_CALLBACK, () =>
+    oauthCallbackBridge.start({ provider: 'supabase' })
+  );
+  handle(IPC.CANCEL_SUPABASE_OAUTH_CALLBACK, async (_event, callbackId) => {
+    if (typeof callbackId !== 'string' || callbackId.length > 200) {
+      throw new Error('OAuth認証IDが正しくありません。');
+    }
+    oauthCallbackBridge.cancel(callbackId);
+    return { ok: true };
+  });
+  handle(IPC.VALIDATE_SUPABASE_OAUTH_URL, async (_event, url) => {
+    if (typeof url !== 'string' || !url.startsWith('https://')) {
+      throw new Error('GoogleログインURLが正しくありません。');
+    }
+    const response = await fetch(url, { redirect: 'manual' });
+    if (response.status >= 300 && response.status < 400) {
+      return { ok: true };
+    }
+    const text = await response.text().catch(() => '');
+    let payload = null;
+    try {
+      payload = text ? JSON.parse(text) : null;
+    } catch {
+      payload = { msg: text };
+    }
+    const message = String(payload?.msg || payload?.message || payload?.error || '');
+    const errorCode = String(payload?.error_code || payload?.code || '');
+    if (
+      message.includes('Unsupported provider') ||
+      message.includes('provider is not enabled')
+    ) {
+      throw new Error(
+        'SupabaseでGoogleログインがまだ有効化されていません。Authentication > Providers > GoogleでGoogleを有効にし、Google OAuth client ID / secret とRedirect URLを設定してください。'
+      );
+    }
+    if (errorCode === 'validation_failed' && message) {
+      throw new Error(`Supabase OAuth設定を確認してください: ${message}`);
+    }
+    throw new Error(message || 'Googleログインを開始できませんでした。SupabaseのOAuth設定を確認してください。');
+  });
+  handle(IPC.OPEN_EXTERNAL_URL, async (_event, url) => {
+    if (typeof url !== 'string' || !/^https:\/\/|^http:\/\/127\.0\.0\.1/.test(url)) {
+      throw new Error('開けないURLです。');
+    }
+    await shell.openExternal(url);
+    return { ok: true };
   });
 
   on(IPC.SET_CLICK_THROUGH, (_event, enabled) => {

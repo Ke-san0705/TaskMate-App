@@ -24,6 +24,23 @@ const PROJECT_SETTING_LIMITS = Object.freeze({
   dailyRecommendationLimit: [1, 20],
   deadlineWarningDays: [1, 60]
 });
+const CHARACTER_IMAGE_STATES = Object.freeze([
+  'wait',
+  'click',
+  'alarm',
+  'calm',
+  'attentive',
+  'restless',
+  'anxious',
+  'overloaded',
+  'focusing',
+  'reconnecting',
+  'relieved',
+  'celebrating',
+  'notifying',
+  'clicked'
+]);
+const DATA_URL_PATTERN = /^data:([^;,]+);base64,([a-zA-Z0-9+/=\r\n]+)$/;
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -31,6 +48,19 @@ function clone(value) {
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function nowIso(now = new Date()) {
+  return now instanceof Date ? now.toISOString() : new Date(now).toISOString();
+}
+
+function safeCharacterFolderName(value, fallback = 'cloud-character') {
+  const source = typeof value === 'string' ? value.trim() : '';
+  const sanitized = source
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-')
+    .replace(/\.+$/g, '')
+    .slice(0, 80);
+  return sanitized || fallback;
 }
 
 function isValidLocalDate(value) {
@@ -69,6 +99,28 @@ function validateTask(task, index) {
     throw new Error(`${task.title}のcompletedが真偽値ではありません。`);
   }
 
+  const timestamp = nowIso();
+  const createdAt =
+    typeof task.createdAt === 'string' && task.createdAt
+      ? task.createdAt
+      : typeof task.created_at === 'string' && task.created_at
+        ? task.created_at
+        : timestamp;
+  const updatedAt =
+    typeof task.updatedAt === 'string' && task.updatedAt
+      ? task.updatedAt
+      : typeof task.updated_at === 'string' && task.updated_at
+        ? task.updated_at
+        : createdAt;
+  const completedAt =
+    task.completed && typeof task.completedAt === 'string'
+      ? task.completedAt
+      : task.completed && typeof task.completed_at === 'string'
+        ? task.completed_at
+        : task.completed
+          ? updatedAt
+          : null;
+
   const normalized = {
     id: task.id.trim(),
     title: task.title.trim(),
@@ -77,7 +129,10 @@ function validateTask(task, index) {
     time: task.time,
     genre: typeof task.genre === 'string' ? task.genre : '',
     priority: task.priority,
-    completed: task.completed
+    completed: task.completed,
+    createdAt,
+    updatedAt,
+    completedAt
   };
   if (task.source === 'project' && typeof task.projectTaskId === 'string') {
     normalized.source = 'project';
@@ -123,6 +178,10 @@ function normalizeTaskInput(taskInput) {
       ? taskInput.time.trim()
       : null;
 
+  const previous = isPlainObject(taskInput.current) ? taskInput.current : {};
+  const timestamp = nowIso();
+  const completed = typeof taskInput.completed === 'boolean' ? taskInput.completed : false;
+
   return validateTask(
     {
       id:
@@ -137,8 +196,26 @@ function normalizeTaskInput(taskInput) {
       genre: typeof taskInput.genre === 'string' ? taskInput.genre.trim() : '',
       priority:
         typeof taskInput.priority === 'string' ? taskInput.priority.trim() : 'normal',
-      completed:
-        typeof taskInput.completed === 'boolean' ? taskInput.completed : false,
+      completed,
+      createdAt:
+        typeof taskInput.createdAt === 'string' && taskInput.createdAt
+          ? taskInput.createdAt
+          : typeof previous.createdAt === 'string' && previous.createdAt
+            ? previous.createdAt
+            : timestamp,
+      updatedAt:
+        taskInput.preserveUpdatedAt === true &&
+        typeof taskInput.updatedAt === 'string' &&
+        taskInput.updatedAt
+          ? taskInput.updatedAt
+          : timestamp,
+      completedAt: completed
+        ? typeof taskInput.completedAt === 'string' && taskInput.completedAt
+          ? taskInput.completedAt
+          : previous.completed === true && typeof previous.completedAt === 'string'
+            ? previous.completedAt
+            : timestamp
+        : null,
       source: taskInput.source,
       projectTaskId: taskInput.projectTaskId,
       projectId: taskInput.projectId,
@@ -360,6 +437,8 @@ function createFileManager(app) {
       await fsPromises.access(destination);
       return;
     } catch {
+      // First launch after install: create the writable userData copy without
+      // overwriting existing user data from an older TaskMate installation.
       // 初回起動時だけ、同梱データまたは既定値から生成します。
     }
 
@@ -382,7 +461,11 @@ function createFileManager(app) {
   }
 
   async function ensureInitialFiles() {
+    // Installer builds keep bundled defaults read-only in resources. Runtime JSON
+    // lives in paths.dataRoot so updates, uninstall/reinstall, and non-admin users
+    // do not depend on write access to the application install directory.
     await fsPromises.mkdir(paths.dataRoot, { recursive: true });
+    await fsPromises.mkdir(paths.customCharactersRoot, { recursive: true });
     await copyBundledFileIfMissing('tasks.json', []);
     await copyBundledFileIfMissing('settings.json', clone(DEFAULT_SETTINGS));
     await copyBundledFileIfMissing('notification-state.json', {});
@@ -549,34 +632,54 @@ function createFileManager(app) {
     return next;
   }
 
-  async function getCharacters() {
-    let entries = [];
+  async function listCharacterEntries(root, builtIn) {
     try {
-      entries = await fsPromises.readdir(paths.charactersRoot, { withFileTypes: true });
+      const entries = await fsPromises.readdir(root, { withFileTypes: true });
+      return entries
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => ({ name: entry.name, root, builtIn }));
     } catch (error) {
-      console.error('Charaフォルダを読み込めませんでした。', error);
+      if (builtIn) {
+        console.error('Charaフォルダを読み込めませんでした。', error);
+      }
       return [];
     }
+  }
+
+  async function getCharacterRegistry() {
+    const [bundledEntries, customEntries] = await Promise.all([
+      listCharacterEntries(paths.charactersRoot, true),
+      listCharacterEntries(paths.customCharactersRoot, false)
+    ]);
+    const byName = new Map();
+    for (const entry of [...bundledEntries, ...customEntries]) {
+      if (!byName.has(entry.name)) {
+        byName.set(entry.name, entry);
+      }
+    }
+    return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+  }
+
+  async function getCharacters() {
+    const entries = await getCharacterRegistry();
 
     return Promise.all(
-      entries
-        .filter((entry) => entry.isDirectory())
-        .sort((a, b) => a.name.localeCompare(b.name, 'ja'))
-        .map(async (entry) => {
-          const missingFiles = [];
-          for (const fileName of REQUIRED_CHARACTER_FILES) {
-            try {
-              await fsPromises.access(path.join(paths.charactersRoot, entry.name, fileName));
-            } catch {
-              missingFiles.push(fileName);
-            }
+      entries.map(async (entry) => {
+        const missingFiles = [];
+        for (const fileName of REQUIRED_CHARACTER_FILES) {
+          try {
+            await fsPromises.access(path.join(entry.root, entry.name, fileName));
+          } catch {
+            missingFiles.push(fileName);
           }
-          return {
-            name: entry.name,
-            valid: missingFiles.length === 0,
-            missingFiles
-          };
-        })
+        }
+        return {
+          name: entry.name,
+          builtIn: entry.builtIn,
+          valid: missingFiles.length === 0,
+          missingFiles
+        };
+      })
     );
   }
 
@@ -596,6 +699,15 @@ function createFileManager(app) {
     return character;
   }
 
+  async function getCharacterFolder(characterName) {
+    const registry = await getCharacterRegistry();
+    const entry = registry.find((candidate) => candidate.name === characterName);
+    if (!entry) {
+      throw new Error('指定したキャラクターが見つかりません。');
+    }
+    return path.join(entry.root, entry.name);
+  }
+
   async function imageAsDataUrl(filePath) {
     try {
       const image = await fsPromises.readFile(filePath);
@@ -607,7 +719,7 @@ function createFileManager(app) {
 
   async function getCharacterData(characterName) {
     const character = await assertCharacterName(characterName);
-    const folder = path.join(paths.charactersRoot, characterName);
+    const folder = await getCharacterFolder(characterName);
     let dialogues = {};
     let error = null;
     try {
@@ -648,6 +760,7 @@ function createFileManager(app) {
 
     return {
       name: characterName,
+      builtIn: character.builtIn,
       valid: character.valid,
       missingFiles: character.missingFiles,
       images,
@@ -666,6 +779,88 @@ function createFileManager(app) {
       throw new Error(characterData.error);
     }
     return updateSettings({ selectedCharacter: characterName });
+  }
+
+  async function exportCharacterPack(characterName) {
+    const character = await assertCharacterName(characterName);
+    const data = await getCharacterData(characterName);
+    if (data.error) {
+      throw new Error(data.error);
+    }
+    return {
+      id: character.name,
+      name: character.name,
+      description: '',
+      builtIn: character.builtIn,
+      images: data.images,
+      dialogues: data.dialogues
+    };
+  }
+
+  function decodeDataUrl(dataUrl) {
+    if (typeof dataUrl !== 'string') {
+      return null;
+    }
+    const match = DATA_URL_PATTERN.exec(dataUrl.trim());
+    if (!match) {
+      return null;
+    }
+    return {
+      mimeType: match[1].toLowerCase(),
+      buffer: Buffer.from(match[2].replace(/\s/g, ''), 'base64')
+    };
+  }
+
+  async function writeImageDataUrl(folder, stateName, dataUrl) {
+    const decoded = decodeDataUrl(dataUrl);
+    if (!decoded || !decoded.mimeType.startsWith('image/')) {
+      throw new Error(`${stateName}の画像データが不正です。`);
+    }
+    await fsPromises.writeFile(path.join(folder, `${stateName}.png`), decoded.buffer);
+  }
+
+  async function bundledCharacterNameExists(characterName) {
+    try {
+      const stats = await fsPromises.stat(path.join(paths.charactersRoot, characterName));
+      return stats.isDirectory();
+    } catch {
+      return false;
+    }
+  }
+
+  async function saveCloudCharacterPack(characterPack) {
+    const remoteId = safeCharacterFolderName(
+      characterPack.localCharacterId || characterPack.local_character_id || characterPack.id,
+      safeCharacterFolderName(characterPack.name)
+    );
+    const targetName = (await bundledCharacterNameExists(remoteId))
+      ? safeCharacterFolderName(`cloud-${remoteId}`)
+      : remoteId;
+    const folder = path.join(paths.customCharactersRoot, targetName);
+    const images = isPlainObject(characterPack.images) ? characterPack.images : {};
+    const fallbackImage = images.wait || images.click || images.alarm;
+    const dialoguesSource = isPlainObject(characterPack.dialogues)
+      ? characterPack.dialogues
+      : { calm: ['こんにちは。'] };
+
+    await fsPromises.mkdir(folder, { recursive: true });
+    await safeWriteJson(path.join(folder, 'dialogues.json'), validateDialogues(dialoguesSource));
+
+    for (const stateName of ['wait', 'click', 'alarm']) {
+      const image = images[stateName] || fallbackImage;
+      if (!image) {
+        throw new Error(`${stateName}.pngに使える画像がありません。`);
+      }
+      await writeImageDataUrl(folder, stateName, image);
+    }
+    for (const stateName of CHARACTER_IMAGE_STATES) {
+      if (['wait', 'click', 'alarm'].includes(stateName) || !images[stateName]) {
+        continue;
+      }
+      await writeImageDataUrl(folder, stateName, images[stateName]);
+    }
+
+    return getCharacterData(targetName);
   }
 
   async function getNotificationState() {
@@ -731,6 +926,8 @@ function createFileManager(app) {
     getCharacters,
     getCharacterData,
     selectCharacter,
+    exportCharacterPack,
+    saveCloudCharacterPack,
     getNotificationState,
     saveNotificationState,
     getLifeState,

@@ -1,6 +1,7 @@
 const AsyncStorage = require('@react-native-async-storage/async-storage').default;
 const { DEFAULT_SETTINGS, STORAGE_KEYS } = require('../constants/defaults');
 const { warn } = require('../utils/logger');
+const { normalizeUnlockModeSettings } = require('../utils/unlockMode');
 
 let settingsQueue = Promise.resolve();
 
@@ -32,25 +33,24 @@ function normalizeSettings(value) {
       : DEFAULT_SETTINGS.notificationMinutesBefore,
     notificationOffsets:
       notificationOffsets.length > 0 ? notificationOffsets : DEFAULT_SETTINGS.notificationOffsets,
-    behaviorEnabled:
-      typeof source.behaviorEnabled === 'boolean'
-        ? source.behaviorEnabled
-        : DEFAULT_SETTINGS.behaviorEnabled,
-    ambientEffects:
-      typeof source.ambientEffects === 'boolean'
-        ? source.ambientEffects
-        : DEFAULT_SETTINGS.ambientEffects,
-    completionReactions:
-      typeof source.completionReactions === 'boolean'
-        ? source.completionReactions
-        : DEFAULT_SETTINGS.completionReactions,
-    relationshipMemoryEnabled:
-      typeof source.relationshipMemoryEnabled === 'boolean'
-        ? source.relationshipMemoryEnabled
-        : DEFAULT_SETTINGS.relationshipMemoryEnabled,
-    behaviorIntensity: ['low', 'normal', 'high'].includes(source.behaviorIntensity)
-      ? source.behaviorIntensity
-      : DEFAULT_SETTINGS.behaviorIntensity,
+    focusRestrictionEnabled:
+      typeof source.focusRestrictionEnabled === 'boolean'
+        ? source.focusRestrictionEnabled
+        : DEFAULT_SETTINGS.focusRestrictionEnabled,
+    focusAccessibilityDisclosureAcceptedAt:
+      typeof source.focusAccessibilityDisclosureAcceptedAt === 'string' &&
+      source.focusAccessibilityDisclosureAcceptedAt
+        ? source.focusAccessibilityDisclosureAcceptedAt
+        : DEFAULT_SETTINGS.focusAccessibilityDisclosureAcceptedAt,
+    defaultBlockedApps: Array.isArray(source.defaultBlockedApps)
+      ? source.defaultBlockedApps
+          .map((app) => ({
+            packageName: typeof app?.packageName === 'string' ? app.packageName : '',
+            appName: typeof app?.appName === 'string' ? app.appName : ''
+          }))
+          .filter((app) => app.packageName && app.appName)
+      : DEFAULT_SETTINGS.defaultBlockedApps,
+    unlockMode: normalizeUnlockModeSettings(source.unlockMode),
     quietHours: {
       ...DEFAULT_SETTINGS.quietHours,
       ...(source.quietHours && typeof source.quietHours === 'object' ? source.quietHours : {})

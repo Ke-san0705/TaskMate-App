@@ -1,0 +1,52 @@
+name: Build Windows Installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - feature/**
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-windows:
+    name: Build NSIS installer
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm.cmd ci
+
+      - name: Run desktop tests
+        run: npm.cmd test
+
+      - name: Run shared core tests
+        run: npm.cmd run test:core
+
+      - name: Build Windows installer
+        # This creates a distributable NSIS setup exe. It intentionally stops at
+        # artifact generation; publishing a public GitHub Release should remain a
+        # manual decision until release policy, signing, and update flow are stable.
+        run: npm.cmd run dist
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: taskmate-windows-installer
+          path: |
+            dist/TaskMate-Setup-*.exe
+            dist/*.blockmap
+          if-no-files-found: error
