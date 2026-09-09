@@ -284,7 +284,7 @@ function TaskMateProvider({ children }) {
     try {
       await getDatabase();
       await notificationService.configureNotifications();
-      await Promise.all([loadCharacters(), loadInstalledApps(), refreshFocusPermissions()]);
+      await Promise.all([loadCharacters(), refreshFocusPermissions()]);
       const result = await refreshTasksAndFocus({ migrateLegacyFocus: true });
       await refreshProjectState();
       await notificationService.reconcileNotifications(
@@ -301,7 +301,6 @@ function TaskMateProvider({ children }) {
     }
   }, [
     loadCharacters,
-    loadInstalledApps,
     refreshFocusPermissions,
     refreshProjectState,
     refreshTasksAndFocus
@@ -317,9 +316,6 @@ function TaskMateProvider({ children }) {
         });
         refreshFocusPermissions().catch((permissionError) => {
           setError(messageFromError(permissionError));
-        });
-        loadInstalledApps().catch((appsError) => {
-          setError(messageFromError(appsError));
         });
         refreshProjectState();
       }
@@ -339,7 +335,6 @@ function TaskMateProvider({ children }) {
     };
   }, [
     initialize,
-    loadInstalledApps,
     refreshFocusPermissions,
     refreshProjectState,
     refreshTasksAndFocus

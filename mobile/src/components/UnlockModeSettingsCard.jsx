@@ -104,6 +104,10 @@ function UnlockModeSettingsCard() {
     }
   }, [mode.usageAccessDisclosureAcceptedAt]);
 
+  React.useEffect(() => {
+    loadInstalledApps().catch((loadError) => setError(String(loadError.message || loadError)));
+  }, [loadInstalledApps, setError]);
+
   async function saveUnlockMode(partial) {
     setMessage('');
     try {
