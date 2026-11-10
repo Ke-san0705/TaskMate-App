@@ -9,7 +9,9 @@ MuseがHTTPS APIへ送ったタスクをSupabaseの受信箱に保存し、TaskM
 ## 1. Supabaseを準備する
 
 既存のTaskMate用Supabaseプロジェクトを利用できます。個人検証はFreeプランから始められます。
-この変更ではプロジェクト作成・課金・実環境配備を実行していません。
+2026-11-10に既存プロジェクト `nppqtkehgeusoghkecsw` のFreeプランを確認し、
+受信箱SQLとFunctionを配備しました。課金プランへの変更は行っていません。
+実機更新と接続確認の記録は [配備記録](deployments/2026-11-10-mobile-task-inbox.md) を参照してください。
 
 Supabase DashboardのSQL Editorで次のSQLを実行します。
 
@@ -29,7 +31,7 @@ PC版に同じプロジェクトのメール／パスワードアカウントが
 Supabase CLIでログイン・対象プロジェクトの確認後、リポジトリ直下から実行します。
 
 ```powershell
-npx supabase functions deploy task-inbox --project-ref YOUR_PROJECT_REF --no-verify-jwt
+npx supabase functions deploy task-inbox --project-ref YOUR_PROJECT_REF --no-verify-jwt --use-api
 ```
 
 このFunctionは通常のJWTとは異なる追加専用キーも受け付けるため、ゲートウェイのJWT検証を無効にします。
@@ -74,9 +76,10 @@ npm --prefix mobile run android
 
 ## 5. Museへ渡すAPI情報
 
-API定義: `docs/task-inbox.openapi.json`。Custom Connectorのツールとして追加操作だけを登録してください。
+API定義: `docs/task-inbox.openapi.json`。配備済みプロジェクトのURLを設定済みです。
+Custom Connectorのツールとして追加操作だけを登録してください。
 
-- URL: `https://YOUR_PROJECT_REF.supabase.co/functions/v1/task-inbox/tasks`
+- URL: `https://nppqtkehgeusoghkecsw.supabase.co/functions/v1/task-inbox/tasks`
 - Method: `POST`
 - Header: `Authorization: Bearer <資格情報保存機能に登録した追加専用キー>`
 - Content-Type: `application/json`

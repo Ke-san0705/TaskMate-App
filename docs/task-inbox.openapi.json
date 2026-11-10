@@ -1,7 +1,7 @@
 {
   "openapi": "3.0.3",
   "info": { "title": "TaskMate task inbox", "version": "1.0.0", "description": "Append tasks for one user's Android TaskMate inbox. Dates use Asia/Tokyo. A 202 response confirms server receipt; the phone imports at next open. Never invent an unknown deadline. Keep externalId stable when retrying." },
-  "servers": [{ "url": "https://YOUR_PROJECT_REF.supabase.co/functions/v1/task-inbox" }],
+  "servers": [{ "url": "https://nppqtkehgeusoghkecsw.supabase.co/functions/v1/task-inbox" }],
   "paths": {
     "/tasks": {
       "post": {
