@@ -57,9 +57,14 @@ declare
   v_id uuid;
   v_results jsonb := '[]';
 begin
-  select * into v_key from public.task_inbox_keys where token_hash=p_hash for update;
+  -- Resolve ownership without a row lock. All operations take the user lock
+  -- first, so an erase cannot deadlock against a submission holding this key.
+  select * into v_key from public.task_inbox_keys where token_hash=p_hash;
   if not found or v_key.revoked_at is not null then raise sqlstate 'PT401' using message='Invalid integration key.'; end if;
   perform pg_advisory_xact_lock(hashtextextended(v_key.user_id::text, 0));
+  -- The key may have been erased or revoked while waiting for the user lock.
+  select * into v_key from public.task_inbox_keys where token_hash=p_hash for update;
+  if not found or v_key.revoked_at is not null then raise sqlstate 'PT401' using message='Invalid integration key.'; end if;
   if jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) not between 1 and 50 then
     raise sqlstate 'PT400' using message='Invalid batch.';
   end if;

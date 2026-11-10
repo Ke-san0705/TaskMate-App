@@ -71,3 +71,14 @@ test('同じ利用者への並行取得は一つにまとめる', async () => {
   await Promise.all([sync('user-A'), sync('user-A')]);
   assert.equal(calls, 1);
 });
+
+test('説明や時刻の不正な型を黙って捨てず、受領確認せずに次の正常タスクを処理する', async () => {
+  const { sqlite, repo } = repository(); const acknowledged = [];
+  const invalid = { ...item('00000000-0000-4000-8000-000000000002'), task: { ...item().task, time: 1700, description: { text: '元の情報' } } };
+  const sync = createInboxSync({ fetchPage: async () => ({ items: [invalid, item()] }), importItem: repo.importInboxItem,
+    acknowledge: async (_, ids) => acknowledged.push(...ids), isCurrent: () => true, onImported: async () => {} });
+  const result = await sync('user-A');
+  assert.equal(result.created, 1); assert.equal(result.rejected, 1);
+  assert.deepEqual(acknowledged, [item().id]);
+  sqlite.close();
+});

@@ -277,7 +277,7 @@ function SettingsScreen({ navigation }) {
                 'タスク、設定、集中履歴、カスタムキャラクターと連携のログイン状態を端末から削除します。サーバーの受信箱と連携キーは残ります。',
                 [
                   { text: 'キャンセル', style: 'cancel' },
-                  { text: 'すべて削除', style: 'destructive', onPress: deleteAllLocalData }
+                  { text: 'すべて削除', style: 'destructive', onPress: () => deleteAllLocalData().catch((reason) => Alert.alert('削除できませんでした', reason.message || 'もう一度お試しください。')) }
                 ]
               )
             }

@@ -90,6 +90,8 @@ function TaskMateProvider({ children }) {
   const [selectedCharacter, setSelectedCharacter] = React.useState(null);
   const [streak, setStreak] = React.useState(() => streakRepository.emptyStreak());
   const settingsRef = React.useRef(null);
+  const localResetRef = React.useRef(false);
+  const refreshEpochRef = React.useRef(0);
   const selectedCharacterRef = React.useRef(null);
   const [undoItem, setUndoItem] = React.useState(null);
   const [clock, setClock] = React.useState(new Date());
@@ -289,6 +291,8 @@ function TaskMateProvider({ children }) {
   }, []);
 
   const refreshTasksAndFocus = React.useCallback(async (options = {}) => {
+    if (localResetRef.current && !options.allowDuringReset) return null;
+    const refreshEpoch = refreshEpochRef.current;
     const now = new Date();
     const [loadedTasks, loadedSettings] = await Promise.all([
       taskRepository.listTasks(),
@@ -302,6 +306,7 @@ function TaskMateProvider({ children }) {
     }
 
     const loadedFocusState = await focusRepository.readFocusState(loadedTasks);
+    if (refreshEpoch !== refreshEpochRef.current || (localResetRef.current && !options.allowDuringReset)) return null;
     setTasks(loadedTasks);
     applySettings(loadedSettings);
     setFocusState(loadedFocusState);
@@ -309,7 +314,7 @@ function TaskMateProvider({ children }) {
     setClock(now);
 
     if (options.reconcileNotifications !== false) {
-      notificationService
+      await notificationService
         .reconcileNotifications(loadedTasks, loadedSettings, now)
         .catch((notificationError) =>
           warn('Notifications', 'background reconcile failed', notificationError)
@@ -331,14 +336,15 @@ function TaskMateProvider({ children }) {
     });
   }, [clock, loading, refreshTasksAndFocus, streak?.dateKey]);
 
-  const initialize = React.useCallback(async () => {
+  const initialize = React.useCallback(async (options = {}) => {
     setLoading(true);
     setError('');
     try {
       await getDatabase();
       await notificationService.configureNotifications();
       await Promise.all([loadCharacters(), refreshFocusPermissions()]);
-      const result = await refreshTasksAndFocus({ migrateLegacyFocus: true });
+      const result = await refreshTasksAndFocus({ migrateLegacyFocus: true, allowDuringReset: options.allowDuringReset });
+      if (!result) return;
       await refreshProjectState();
       await notificationService.reconcileNotifications(
         result.loadedTasks,
@@ -701,21 +707,29 @@ function TaskMateProvider({ children }) {
   }
 
   async function deleteAllLocalData() {
-    await taskInbox.resetLocal();
-    await notificationService.cancelAllKnownNotifications();
-    await focusNativeModule.setFocusMonitorState({ active: false });
-    await focusNativeModule.setUnlockMonitorState({ unlockMode: { enabled: false } });
-    await clearDatabaseForReset();
-    await AsyncStorage.multiRemove([
-      STORAGE_KEYS.settings,
-      STORAGE_KEYS.lifeState,
-      STORAGE_KEYS.characters,
-      STORAGE_KEYS.selectedCharacter
-    ]);
-    settingsRef.current = null;
-    selectedCharacterRef.current = null;
-    setUndoItem(null);
-    await initialize();
+    if (localResetRef.current) return;
+    localResetRef.current = true;
+    refreshEpochRef.current++;
+    try {
+      await taskInbox.resetLocal(async () => {
+        await notificationService.cancelAllKnownNotifications();
+        await focusNativeModule.setFocusMonitorState({ active: false });
+        await focusNativeModule.setUnlockMonitorState({ unlockMode: { enabled: false } });
+        await clearDatabaseForReset();
+        await AsyncStorage.multiRemove([
+          STORAGE_KEYS.settings,
+          STORAGE_KEYS.lifeState,
+          STORAGE_KEYS.characters,
+          STORAGE_KEYS.selectedCharacter
+        ]);
+        settingsRef.current = null;
+        selectedCharacterRef.current = null;
+        setUndoItem(null);
+        await initialize({ allowDuringReset: true });
+      });
+    } finally {
+      localResetRef.current = false;
+    }
   }
 
   function consumeNotificationTask() {

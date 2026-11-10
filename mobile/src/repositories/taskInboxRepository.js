@@ -7,8 +7,16 @@ const INBOX_SCHEMA = `CREATE TABLE IF NOT EXISTS external_task_receipts (
 )`;
 
 function validateItem(item) {
-  if (!item || !UUID.test(item.id) || item.source !== 'muse' || typeof item.externalId !== 'string' || !item.externalId || item.externalId.length > 200 || !item.task || !['high', 'normal', 'low'].includes(item.task.priority || 'normal') || typeof item.task.date !== 'string') {
-    const error = new Error('外部タスクの形式が正しくありません。'); error.name = 'TaskValidationError'; throw error;
+  const invalid = () => { const error = new Error('外部タスクの形式が正しくありません。'); error.name = 'TaskValidationError'; throw error; };
+  if (!item || typeof item.id !== 'string' || !UUID.test(item.id) || item.source !== 'muse' || typeof item.externalId !== 'string' || !item.externalId.trim() || item.externalId.length > 200 || !item.task || typeof item.task !== 'object' || Array.isArray(item.task)) {
+    invalid();
+  }
+  const taskFields = new Set(['title', 'description', 'date', 'time', 'genre', 'priority']);
+  if (Object.keys(item.task).some((key) => !taskFields.has(key)) ||
+      ['title', 'date'].some((key) => typeof item.task[key] !== 'string') ||
+      ['description', 'genre', 'time'].some((key) => item.task[key] !== undefined && !(key === 'time' && item.task[key] === null) && typeof item.task[key] !== 'string') ||
+      (item.task.priority !== undefined && !['high', 'normal', 'low'].includes(item.task.priority))) {
+    invalid();
   }
   // No remote ID or completed flag is allowed to overwrite a local task.
   return normalizeTaskInput({ ...item.task, id: `muse-${item.id}`, completed: false });

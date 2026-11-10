@@ -23,7 +23,7 @@ function TaskInboxSettingsCard({ inbox }) {
           <Text style={styles.label}>起動・復帰時に自動取得</Text>
           <Switch accessibilityLabel="外部タスクを自動取得する" value={inbox.enabled} disabled={inbox.busy} onValueChange={inbox.toggle} />
         </View>
-        <Button onPress={inbox.sync} disabled={inbox.busy || !inbox.enabled}>{inbox.busy ? '処理中…' : '今すぐ取得'}</Button>
+        <Button onPress={inbox.sync} disabled={inbox.busy}>{inbox.busy ? '処理中…' : '今すぐ取得'}</Button>
         <Text style={styles.body}>最終取得: {inbox.lastSyncedAt ? new Date(inbox.lastSyncedAt).toLocaleString('ja-JP') : '未取得'}</Text>
         <AccordionSection title="Museとの接続" summary="追加専用キーを設定する">
           <Text style={styles.body}>スマホ1台・日本時間での受信に対応しています。キーはタスク追加だけに使えます。</Text>
