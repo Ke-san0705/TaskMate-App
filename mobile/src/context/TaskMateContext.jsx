@@ -28,6 +28,7 @@ const {
 } = require('../utils/unlockMode');
 const { log, warn } = require('../utils/logger');
 const { messageFromError } = require('../utils/validation');
+const { useTaskInbox } = require('../hooks/useTaskInbox');
 
 const TaskMateContext = React.createContext(null);
 
@@ -318,6 +319,8 @@ function TaskMateProvider({ children }) {
     await syncWidgetPresentation(loadedStreak);
     return { loadedTasks, loadedSettings, loadedFocusState, loadedStreak };
   }, [applySettings, migrateLegacyFocusTask, syncNativeFocus, syncWidgetPresentation]);
+
+  const taskInbox = useTaskInbox({ ready: !loading, onImported: refreshTasksAndFocus });
 
   React.useEffect(() => {
     if (loading || !streak?.dateKey || streak.dateKey === localDateKey(clock)) {
@@ -698,6 +701,7 @@ function TaskMateProvider({ children }) {
   }
 
   async function deleteAllLocalData() {
+    await taskInbox.resetLocal();
     await notificationService.cancelAllKnownNotifications();
     await focusNativeModule.setFocusMonitorState({ active: false });
     await focusNativeModule.setUnlockMonitorState({ unlockMode: { enabled: false } });
@@ -767,6 +771,7 @@ function TaskMateProvider({ children }) {
     startFocusSession,
     streak,
     taskGroups,
+    taskInbox,
     tasks,
     undoCompleteTask,
     undoItem,
