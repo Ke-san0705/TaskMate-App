@@ -43,6 +43,6 @@
 **Interfaces:** Uses `GITHUB_REDIRECT_TO`; no new endpoints or task schemas.
 
 - [x] Add the exact callback to Supabase Auth URL allowlist without replacing PC redirect entries.
-- [ ] Build release APK, sign with the installed app's existing key, verify its certificate, then update with `adb install -r`.
+- [x] Build release APK, sign with the installed app's existing key, verify its certificate, then update with `adb install -r`.
 - [ ] Verify existing tasks and the GitHub button; hand off GitHub credentials / consent to the user and observe successful session + inbox retrieval.
 - [ ] Run root / core / mobile suites, update the PR, and verify CI.

@@ -13,6 +13,7 @@
 - Edge Function `task-inbox` の3ファイルをリポジトリと一致させて配備。
 - Function内で本人セッション／追加専用キーを検証するため、同Functionのlegacy JWT検証は無効。
 - 実環境の疎通確認: OPTIONSは204、認証なし・無効な追加キー・無効な本人セッションはいずれも401。
+- Publishable keyだけでの受信箱・キーハッシュの直接取得とキー発行RPCは401（42501）で拒否。
 - 有効なアカウントからのキー発行、取り込み、Museからの送信は別途実機で確認する。
 
 追加先: `https://nppqtkehgeusoghkecsw.supabase.co/functions/v1/task-inbox/tasks`
@@ -35,12 +36,37 @@
 144764A22864FCD7AD871910E9F1D426A213FBCC5D2601349A72C3AC7CC02284
 ```
 
+その後、利用者の選択によりGitHubログイン（PKCE/S256）を追加し、同じ署名で再度更新した。
+最終の検証版は `2.1.0-muse-github-test`（versionCode 21）。更新後も同じデータ領域と「3 / 4」の進捗を確認し、
+設定の「GitHubでログイン」ボタンを確認した。APK内に追加コードと二重操作防止の修正を含むことも確認した。
+最終APKのSHA-256:
+
+```text
+974A228DD8B52DE30D20D5906B867FCAC0971BA60A29435D0A40A542DDCB12C4
+```
+
+## GitHub認証の設定
+
+利用者がGitHubでログインしていたのはSupabaseの管理画面で、TaskMateのAuthユーザーとは別だった。
+対象プロジェクトのGitHubプロバイダーは無効で、Client ID / Secretは空だった。
+Authの許可URLへ `taskmate://auth/callback` を追加し、GitHubのOAuth App登録フォームを準備した。
+GitHub側のcallbackは `https://nppqtkehgeusoghkecsw.supabase.co/auth/v1/callback`。
+OAuth Appの新規登録と、発行する資格情報のSupabaseへの設定は利用者の実行直前確認待ち。
+
+## 追加実装の検証
+
+- root 48/48、core 17/17、mobile 49/49（計114件）。
+- Expo Android export成功。ネイティブビルド成功、署名検証成功、更新インストール成功。
+- 新規OAuthコードのレビューで二重タップ時の再表示を修正し、再現テストのRED→GREENを確認。
+- 軽微な残件: Supabase SDKが返すflowIdを交換に渡していないため、成功した認証の別管理verifierはSDKの整理まで残る。
+  現在のlegacy verifierによるコード交換はテスト済み。ログインセッションそのものを外へ公開するものではない。
+
 APK、署名鍵、パスワード、ログインセッション、Muse用キーはGitHubへ追加していない。
 ローカルのビルド成果物と作業用ファイルは `.codex-temp/` に保存する。
 
 ## 利用者の接続手順
 
-1. スマホの設定 → 外部タスク連携で、既存のメール／パスワードアカウントにログインする。
+1. スマホの設定 → 外部タスク連携でGitHubにログインする。メール認証用のアカウントはメール／パスワードでも利用できる。
 2. 「Museとの接続」から追加専用キーを発行し、Museの資格情報保存欄に設定する。
 3. `docs/task-inbox.openapi.json` の追加操作をMuseへ登録する。
 4. テストタスクを1件送信し、スマホの起動・復帰または「今すぐ取得」で反映を確認する。

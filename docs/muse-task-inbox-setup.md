@@ -28,6 +28,12 @@ GitHubプロバイダーの設定は既存のものを使い、Authenticationの
 スマホではPKCE（S256）のコード交換とSecureStoreを利用し、標準ブラウザーからアプリへ戻ります。
 認証途中にOSがアプリを終了した場合は、GitHubログインをやり直してください。
 
+Supabase管理画面へGitHubでログインできることと、TaskMateの利用者がGitHub認証を使えることは別です。
+プロジェクトのGitHubプロバイダーが未設定なら、[公式のGitHub認証設定](https://supabase.com/docs/guides/auth/social-sign-in/auth-github)に従い、
+GitHub OAuth Appを作成して、そのClient ID / SecretをSupabaseのGitHub設定へ保存します。
+GitHub側のcallbackは `https://nppqtkehgeusoghkecsw.supabase.co/auth/v1/callback` です。
+Client Secretをアプリ、GitHubリポジトリ、会話本文へ入れないでください。
+
 メール認証を利用する場合はAuthenticationでEmail / Passwordを有効にし、Usersから検証用ユーザーを作成します。
 スマホには新規メールアカウントの作成画面がないため、作成済みユーザーでログインしてください。
 
