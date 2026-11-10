@@ -1,6 +1,14 @@
 const GITHUB_REDIRECT_TO = 'taskmate://auth/callback';
 const LOGIN_ERROR = 'GitHubでログインできませんでした。もう一度お試しください。';
 
+function createLoginGuard() {
+  let pending = null;
+  return { run(operation) {
+    if (!pending) pending = Promise.resolve().then(operation).finally(() => { pending = null; });
+    return pending;
+  } };
+}
+
 // Supabase uses the Web Crypto shape for PKCE. Hermes needs Expo's native
 // random source and digest; never fall back to Math.random or plain PKCE.
 function ensurePKCECrypto(runtime, nativeCrypto) {
@@ -43,4 +51,4 @@ function createGitHubLogin({ auth, openAuthSession, projectUrl }) {
     }
   };
 }
-module.exports = { GITHUB_REDIRECT_TO, createGitHubLogin, ensurePKCECrypto };
+module.exports = { GITHUB_REDIRECT_TO, createGitHubLogin, ensurePKCECrypto, createLoginGuard };

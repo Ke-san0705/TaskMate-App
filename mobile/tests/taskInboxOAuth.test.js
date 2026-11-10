@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createHash } = require('node:crypto');
 const { createClient } = require('@supabase/supabase-js');
-const { createGitHubLogin, GITHUB_REDIRECT_TO, ensurePKCECrypto } = require('../src/services/taskInboxOAuth');
+const { createGitHubLogin, GITHUB_REDIRECT_TO, ensurePKCECrypto, createLoginGuard } = require('../src/services/taskInboxOAuth');
 const { createMutationBarrier } = require('../src/services/taskInboxLifecycle');
 const projectUrl = 'https://example.supabase.co';
 const redirect = 'taskmate://auth/callback';
@@ -67,6 +67,20 @@ test('ブラウザーのキャンセルはコードを交換しない', async ()
     assert.equal(await createGitHubLogin(f.options)(() => true), null);
     assert.deepEqual(f.exchanged, []);
   }
+});
+
+test('二重タップ後のキャンセルでブラウザーを再表示せず、次の明示操作は許可する', async () => {
+  const f = fixture(), barrier = createMutationBarrier(), guard = createLoginGuard();
+  const entered = deferred(), cancelled = deferred(); let browserCount = 0;
+  f.options.openAuthSession = async () => { browserCount++; entered.resolve(); return cancelled.promise; };
+  const login = createGitHubLogin(f.options);
+  const press = () => guard.run(() => barrier.run(login));
+  const first = press(), second = press();
+  assert.equal(first, second);
+  await entered.promise; cancelled.resolve({ type: 'cancel' });
+  await Promise.all([first, second]);
+  assert.equal(browserCount, 1); assert.deepEqual(f.exchanged, []);
+  await press(); assert.equal(browserCount, 2);
 });
 
 test('別の戻り先・重複コード・暗黙トークン・認証拒否を受け入れない', async () => {

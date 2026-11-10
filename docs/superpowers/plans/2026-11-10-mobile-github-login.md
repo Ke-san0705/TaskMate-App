@@ -30,11 +30,11 @@
 
 **Interfaces:** `createGitHubLogin({auth, openAuthSession, projectUrl})` produces async `(isCurrent) => session | null`. Exports `GITHUB_REDIRECT_TO`.
 
-- [ ] Write tests for a valid PKCE flow, browser cancellation, malformed callback / authorization URLs, safe errors, stale browser return and reset during exchange.
-- [ ] Run `node --test mobile/tests/taskInboxOAuth.test.js`; confirm RED for missing OAuth implementation.
-- [ ] Implement the helper, install Expo-compatible `expo-web-browser`, set `flowType: 'pkce'`, and add GitHub action / button under existing mutation barrier.
-- [ ] Run `npm --prefix mobile test` and `npm --prefix mobile run export:android`; expect all passing and export success.
-- [ ] Commit the implementation and docs; request one fresh review of the integration, fix important findings with RED→GREEN.
+- [x] Write tests for a valid PKCE flow, browser cancellation, malformed callback / authorization URLs, safe errors, stale browser return and reset during exchange.
+- [x] Run `node --test mobile/tests/taskInboxOAuth.test.js`; confirm RED for missing OAuth implementation.
+- [x] Implement the helper, install Expo-compatible `expo-web-browser`, set `flowType: 'pkce'`, and add GitHub action / button under existing mutation barrier.
+- [x] Run `npm --prefix mobile test` and `npm --prefix mobile run export:android`; expect all passing and export success.
+- [x] Commit the implementation and docs; request one fresh review of the integration, fix important findings with RED→GREEN.
 
 ### Task 2: 配備設定と実機更新
 
@@ -42,7 +42,7 @@
 
 **Interfaces:** Uses `GITHUB_REDIRECT_TO`; no new endpoints or task schemas.
 
-- [ ] Add the exact callback to Supabase Auth URL allowlist without replacing PC redirect entries.
+- [x] Add the exact callback to Supabase Auth URL allowlist without replacing PC redirect entries.
 - [ ] Build release APK, sign with the installed app's existing key, verify its certificate, then update with `adb install -r`.
 - [ ] Verify existing tasks and the GitHub button; hand off GitHub credentials / consent to the user and observe successful session + inbox retrieval.
 - [ ] Run root / core / mobile suites, update the PR, and verify CI.
