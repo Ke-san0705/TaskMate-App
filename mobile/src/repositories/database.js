@@ -246,6 +246,11 @@ async function applySchemaV5(db) {
   log('Migration', 'schema v5 applied');
 }
 
+async function applySchemaV6(db) {
+  await run(db, require('./taskInboxRepository').INBOX_SCHEMA);
+  await run(db, 'INSERT OR REPLACE INTO schema_meta (key, value) VALUES (?, ?)', ['schemaVersion', '6']);
+}
+
 async function initializeDatabase() {
   const db = await SQLite.openDatabaseAsync(DATABASE_NAME);
   await run(db, 'PRAGMA journal_mode = WAL');
@@ -284,6 +289,9 @@ async function initializeDatabase() {
     await applySchemaV5(db);
     version = 5;
   }
+  if (version < 6) {
+    await applySchemaV6(db);
+  }
 
   log('Database', 'initialized');
   return db;
@@ -303,6 +311,7 @@ function getDatabase() {
 async function clearDatabaseForReset() {
   const db = await getDatabase();
   await runStatements(db, [
+    'DELETE FROM external_task_receipts',
     'DELETE FROM notification_schedules',
     'DELETE FROM project_tasks',
     'DELETE FROM project_milestones',
