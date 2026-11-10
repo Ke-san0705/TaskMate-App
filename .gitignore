@@ -23,6 +23,10 @@ pnpm-debug.log*
 .env
 .env.local
 
+# Supabase CLI local project/cache files
+supabase/.temp/
+.codex-temp/
+
 # Local app data
 data/*.json
 !data/*.example.json

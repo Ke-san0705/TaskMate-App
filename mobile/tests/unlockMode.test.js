@@ -150,7 +150,7 @@ test('条件アプリと制限アプリが重複した設定は保存不可', ()
 
 test('TaskMate自身は制限対象にできない', () => {
   const result = validateUnlockModeSettings(unlockMode({
-    blockedApps: [{ packageName: 'com.taskmate.mobile', appName: 'TaskMate' }]
+    blockedApps: [{ packageName: 'com.kesan0705.taskmate', appName: 'TaskMate' }]
   }));
   assert.equal(result.valid, false);
   assert.match(result.errors.join('\n'), /安全/);

@@ -7,13 +7,6 @@ const { useTaskMate } = require('../context/TaskMateContext');
 const { ROUTES } = require('../constants/routes');
 const { colors, radius, shadows, spacing, typography } = require('../theme/taskMateTheme');
 
-function characterTags(character) {
-  if (character?.id === 'Chara2') {
-    return ['案内役', '応援上手', '課題向き'];
-  }
-  return ['案内役', 'やさしい', '勉強向き'];
-}
-
 function CharactersScreen({ navigation }) {
   const {
     characters,
@@ -29,7 +22,7 @@ function CharactersScreen({ navigation }) {
       <ScrollView contentContainerStyle={styles.container}>
         <ErrorBanner message={error} onClose={() => setError('')} />
         <View style={styles.header}>
-          <View>
+          <View style={styles.headerText}>
             <Text style={styles.eyebrow}>CHARACTER</Text>
             <Text style={styles.title}>キャラクター</Text>
           </View>
@@ -44,13 +37,7 @@ function CharactersScreen({ navigation }) {
         </View>
 
         <View style={styles.preview}>
-          <CharacterView character={selectedCharacter} mood="wait" />
-          <Text style={styles.previewText}>今の案内役：{selectedCharacter?.name}</Text>
-          <View style={styles.tags}>
-            {characterTags(selectedCharacter).map((tag) => (
-              <Text key={tag} style={styles.tag}>{tag}</Text>
-            ))}
-          </View>
+          <CharacterView character={selectedCharacter} mood="wait" showStatus={false} />
         </View>
 
         <View style={styles.list}>
@@ -69,18 +56,13 @@ function CharactersScreen({ navigation }) {
                     <Text style={styles.cardDescription}>
                       {character.description || '説明はありません。'}
                     </Text>
-                    <View style={styles.smallTags}>
-                      {characterTags(character).slice(0, 2).map((tag) => (
-                        <Text key={tag} style={styles.smallTag}>{tag}</Text>
-                      ))}
-                    </View>
                   </View>
-                  <Text style={styles.kind}>{character.builtIn ? '標準キャラ' : 'カスタム'}</Text>
                 </View>
                 <View style={styles.actions}>
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`${character.name}を選択する`}
+                    accessibilityState={{ selected }}
                     style={selected ? styles.selectedButton : styles.secondary}
                     onPress={() => selectCharacter(character.id)}
                   >
@@ -142,10 +124,16 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center'
+    alignItems: 'center',
+    gap: spacing.gap
+  },
+  headerText: {
+    flex: 1,
+    minWidth: 0
   },
   eyebrow: {
-    ...typography.eyebrow
+    ...typography.eyebrow,
+    letterSpacing: 0
   },
   title: {
     ...typography.screenTitle
@@ -169,26 +157,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     ...shadows.card
-  },
-  previewText: {
-    color: colors.primary,
-    fontWeight: '900'
-  },
-  tags: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 7
-  },
-  tag: {
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: radius.pill,
-    overflow: 'hidden',
-    color: colors.primary,
-    backgroundColor: colors.primarySoft,
-    fontSize: 12,
-    fontWeight: '800'
   },
   list: {
     gap: 10
@@ -225,7 +193,8 @@ const styles = StyleSheet.create({
     height: 50
   },
   cardText: {
-    flex: 1
+    flex: 1,
+    minWidth: 0
   },
   cardTitle: {
     color: colors.text,
@@ -236,27 +205,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     color: colors.textMuted,
     lineHeight: 19
-  },
-  smallTags: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 8
-  },
-  smallTag: {
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: radius.pill,
-    overflow: 'hidden',
-    color: colors.primary,
-    backgroundColor: colors.card,
-    fontSize: 11,
-    fontWeight: '800'
-  },
-  kind: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: '800'
   },
   actions: {
     flexDirection: 'row',

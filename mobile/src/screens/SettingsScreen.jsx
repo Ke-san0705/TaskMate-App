@@ -1,9 +1,11 @@
 const React = require('react');
 const { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } = require('react-native');
 const { SafeAreaView } = require('react-native-safe-area-context');
+const AccordionSection = require('../components/AccordionSection');
 const ErrorBanner = require('../components/ErrorBanner');
 const TimeWheelInput = require('../components/TimeWheelInput');
 const UnlockModeSettingsCard = require('../components/UnlockModeSettingsCard');
+const TaskInboxSettingsCard = require('../components/TaskInboxSettingsCard');
 const { useTaskMate } = require('../context/TaskMateContext');
 const { ROUTES } = require('../constants/routes');
 const {
@@ -43,6 +45,7 @@ function SettingsScreen({ navigation }) {
     selectedCharacter,
     setError,
     settings,
+    taskInbox,
     updateSettings
   } = useTaskMate();
   const [message, setMessage] = React.useState('');
@@ -89,7 +92,7 @@ function SettingsScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <ErrorBanner message={error} onClose={() => setError('')} />
         {message ? <Text style={styles.message}>{message}</Text> : null}
         <Text style={styles.eyebrow}>SETTINGS</Text>
@@ -182,7 +185,11 @@ function SettingsScreen({ navigation }) {
               />
             </View>
           </View>
-          <View style={styles.disclosureBox}>
+          <AccordionSection
+            title="アプリ制限の権限・説明"
+            summary={disclosureAccepted ? '利用説明に同意済み' : '有効化する前に確認してください'}
+            defaultExpanded={!disclosureAccepted}
+          >
             <Text style={styles.disclosureTitle}>{ACCESSIBILITY_DISCLOSURE.title}</Text>
             {ACCESSIBILITY_DISCLOSURE.paragraphs.map((paragraph) => (
               <Text key={paragraph} style={styles.disclosureText}>
@@ -215,7 +222,7 @@ function SettingsScreen({ navigation }) {
             >
               <Text style={styles.secondaryText}>ユーザー補助設定を開く</Text>
             </Pressable>
-          </View>
+          </AccordionSection>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="制限するアプリを選ぶ"
@@ -229,6 +236,8 @@ function SettingsScreen({ navigation }) {
         </View>
 
         <UnlockModeSettingsCard />
+
+        <TaskInboxSettingsCard inbox={taskInbox} />
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>表示</Text>
@@ -265,10 +274,10 @@ function SettingsScreen({ navigation }) {
             onPress={() =>
               Alert.alert(
                 'すべて削除しますか？',
-                'タスク、設定、集中履歴、カスタムキャラクターを端末内から削除します。',
+                'タスク、設定、集中履歴、カスタムキャラクターと連携のログイン状態を端末から削除します。サーバーの受信箱と連携キーは残ります。',
                 [
                   { text: 'キャンセル', style: 'cancel' },
-                  { text: 'すべて削除', style: 'destructive', onPress: deleteAllLocalData }
+                  { text: 'すべて削除', style: 'destructive', onPress: () => deleteAllLocalData().catch((reason) => Alert.alert('削除できませんでした', reason.message || 'もう一度お試しください。')) }
                 ]
               )
             }
@@ -276,15 +285,15 @@ function SettingsScreen({ navigation }) {
             <Text style={styles.dangerText}>すべてのローカルデータを削除</Text>
           </Pressable>
           <Text style={styles.privacy}>
-            TaskMate v2はローカルファーストです。タスク、集中状態、制限アプリは端末内に保存し、
-            外部サーバーへ送信しません。
+            タスク、集中状態、制限アプリは端末内に保存します。外部タスク連携を利用すると、
+            連携元から届くタスクをSupabase経由で取得します。
           </Text>
         </View>
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>アプリ情報</Text>
           <Text style={styles.privacy}>TaskMate Mobile 2.0.0</Text>
-          <Text style={styles.privacy}>広告なし、課金なし、アカウントなし。</Text>
+          <Text style={styles.privacy}>広告なし、アプリ内課金なし。外部連携の利用時のみアカウントが必要です。</Text>
         </View>
       </ScrollView>
     </SafeAreaView>

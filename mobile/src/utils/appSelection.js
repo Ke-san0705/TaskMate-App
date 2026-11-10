@@ -7,6 +7,7 @@ const NEVER_BLOCKED_PACKAGE_NAMES = new Set([
   'com.google.android.dialer',
   'com.google.android.apps.safetycenter',
   'com.google.android.permissioncontroller',
+  'com.kesan0705.taskmate',
   'com.taskmate.mobile'
 ]);
 

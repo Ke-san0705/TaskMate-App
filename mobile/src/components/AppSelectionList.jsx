@@ -1,5 +1,5 @@
 const React = require('react');
-const { Pressable, StyleSheet, Text, View } = require('react-native');
+const { Pressable, ScrollView, StyleSheet, Text, View } = require('react-native');
 const JapaneseTextInput = require('./JapaneseTextInput');
 const {
   filterBlockableApps,
@@ -16,6 +16,7 @@ function AppSelectionList({
   fallbackApps = [],
   filter,
   maxItems = 80,
+  maxListHeight,
   onChangeFilter,
   onChangeSelectedApps,
   placeholder = 'アプリ名で検索',
@@ -24,6 +25,7 @@ function AppSelectionList({
   unsafeBlockFilter = true
 }) {
   const selectedPackages = React.useMemo(() => packageSet(selectedApps), [selectedApps]);
+  const ListContainer = maxListHeight ? ScrollView : View;
   const disabledPackageSet = React.useMemo(
     () => new Set([...disabledPackages].filter(Boolean)),
     [disabledPackages]
@@ -68,7 +70,14 @@ function AppSelectionList({
       <Text style={styles.selectedCount}>
         {selectionLabel} {selectedApps.length}件
       </Text>
-      <View style={styles.appList}>
+      <ListContainer
+        style={maxListHeight ? { maxHeight: maxListHeight } : styles.appList}
+        {...(maxListHeight ? {
+          contentContainerStyle: styles.appList,
+          nestedScrollEnabled: true,
+          keyboardShouldPersistTaps: 'handled'
+        } : {})}
+      >
         {choices.length > 0 ? (
           choices.map((app) => {
             const selected = selectedPackages.has(app.packageName);
@@ -92,7 +101,6 @@ function AppSelectionList({
                 </View>
                 <View style={styles.choiceText}>
                   <Text style={styles.choiceTitle}>{app.appName}</Text>
-                  <Text style={styles.choiceMeta}>{app.packageName}</Text>
                   {disabled ? <Text style={styles.disabledReason}>{disabledReason}</Text> : null}
                 </View>
               </Pressable>
@@ -101,7 +109,7 @@ function AppSelectionList({
         ) : (
           <Text style={styles.empty}>候補がありません。</Text>
         )}
-      </View>
+      </ListContainer>
     </View>
   );
 }
@@ -171,12 +179,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 15,
     fontWeight: '900'
-  },
-  choiceMeta: {
-    marginTop: 3,
-    color: colors.textMuted,
-    fontSize: 12,
-    lineHeight: 17
   },
   disabledReason: {
     marginTop: 4,

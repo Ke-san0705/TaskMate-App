@@ -227,6 +227,30 @@ async function applySchemaV4(db) {
   log('Migration', 'schema v4 applied');
 }
 
+async function applySchemaV5(db) {
+  await runStatements(db, [
+    `CREATE TABLE IF NOT EXISTS daily_activity (
+      date TEXT PRIMARY KEY NOT NULL,
+      completed_task_count INTEGER NOT NULL DEFAULT 0,
+      achieved INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_daily_activity_achieved ON daily_activity(achieved, date)'
+  ]);
+
+  await run(db, 'INSERT OR REPLACE INTO schema_meta (key, value) VALUES (?, ?)', [
+    'schemaVersion',
+    '5'
+  ]);
+  log('Migration', 'schema v5 applied');
+}
+
+async function applySchemaV6(db) {
+  await run(db, require('./taskInboxRepository').INBOX_SCHEMA);
+  await run(db, 'INSERT OR REPLACE INTO schema_meta (key, value) VALUES (?, ?)', ['schemaVersion', '6']);
+}
+
 async function initializeDatabase() {
   const db = await SQLite.openDatabaseAsync(DATABASE_NAME);
   await run(db, 'PRAGMA journal_mode = WAL');
@@ -261,6 +285,13 @@ async function initializeDatabase() {
     await applySchemaV4(db);
     version = 4;
   }
+  if (version < 5) {
+    await applySchemaV5(db);
+    version = 5;
+  }
+  if (version < 6) {
+    await applySchemaV6(db);
+  }
 
   log('Database', 'initialized');
   return db;
@@ -280,6 +311,7 @@ function getDatabase() {
 async function clearDatabaseForReset() {
   const db = await getDatabase();
   await runStatements(db, [
+    'DELETE FROM external_task_receipts',
     'DELETE FROM notification_schedules',
     'DELETE FROM project_tasks',
     'DELETE FROM project_milestones',
@@ -288,6 +320,7 @@ async function clearDatabaseForReset() {
     'DELETE FROM focus_sessions',
     'DELETE FROM blocked_apps',
     'DELETE FROM focus_state',
+    'DELETE FROM daily_activity',
     'DELETE FROM tasks'
   ]);
 }

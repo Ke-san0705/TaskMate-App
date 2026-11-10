@@ -10,8 +10,8 @@ test('Google Calendar events are normalized into TaskMate today items', () => {
     {
       id: 'event-1',
       summary: '研究ミーティング',
-      start: { dateTime: '2026-06-25T10:15:00+09:00' },
-      end: { dateTime: '2026-06-25T11:00:00+09:00' },
+      start: { dateTime: new Date(2026, 5, 25, 10, 15).toISOString() },
+      end: { dateTime: new Date(2026, 5, 25, 11, 0).toISOString() },
       htmlLink: 'https://calendar.google.com/event?eid=event-1'
     },
     { id: 'primary', summary: 'メイン', primary: true },
@@ -26,6 +26,22 @@ test('Google Calendar events are normalized into TaskMate today items', () => {
   assert.equal(event.endTime, '11:00');
   assert.equal(event.calendarSummary, 'メイン');
   assert.equal(event.private, false);
+});
+
+test('Google Calendar timestamps are converted into the device timezone', () => {
+  const { spawnSync } = require('node:child_process');
+  for (const [timezone, expected] of [
+    ['UTC', { date: '2026-06-25', time: '01:15' }],
+    ['Asia/Tokyo', { date: '2026-06-25', time: '10:15' }],
+    ['America/Los_Angeles', { date: '2026-06-24', time: '18:15' }]
+  ]) {
+    const script = `const {eventToCalendarItem}=require('./main/googleCalendarService');
+      const item=eventToCalendarItem({id:'timezone',start:{dateTime:'2026-06-25T10:15:00+09:00'},end:{dateTime:'2026-06-25T11:00:00+09:00'}},{id:'primary'},{},{});
+      process.stdout.write(JSON.stringify({date:item.date,time:item.time}));`;
+    const result = spawnSync(process.execPath, ['-e', script], { cwd: require('node:path').join(__dirname, '..'), env: { ...process.env, TZ: timezone }, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout), expected, timezone);
+  }
 });
 
 test('private Google Calendar events hide details when privacy setting is enabled', () => {

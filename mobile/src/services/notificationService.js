@@ -7,6 +7,7 @@ const {
 } = require('../repositories/notificationScheduleRepository');
 const { reconcileScheduledNotifications } = require('./notificationReconciler');
 const { log, warn } = require('../utils/logger');
+const { createNotificationLifecycle } = require('./notificationLifecycle');
 
 let handlerConfigured = false;
 
@@ -124,11 +125,12 @@ function addNotificationResponseListener(callback) {
   return Notifications.addNotificationResponseReceivedListener(callback);
 }
 
+const lifecycle = createNotificationLifecycle({ reconcile: reconcileNotifications, cancelAll: cancelAllKnownNotifications });
 module.exports = {
   addNotificationResponseListener,
-  cancelAllKnownNotifications,
+  cancelAllKnownNotifications: lifecycle.cancelAll,
   configureNotifications,
   getNotificationPermissionStatus,
-  reconcileNotifications,
+  reconcileNotifications: lifecycle.reconcile,
   requestNotificationPermission
 };

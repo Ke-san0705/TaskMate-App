@@ -1,10 +1,11 @@
 # TaskMate v2 Google Play Release Preparation
 
-Last updated: 2026-09-08
+Last updated: 2026-09-28
 
 ## Build Identity
 
-- Application ID: `com.taskmate.mobile`
+- Application ID: `com.kesan0705.taskmate`
+- Native namespace: `com.taskmate.mobile`
 - App label: `TaskMate Mobile`
 - Version code: `20`
 - Version name: `2.0.0`
@@ -57,7 +58,7 @@ Observed in the final release APK:
   - Added by notification/runtime dependencies.
 - `com.google.android.c2dm.permission.RECEIVE`
   - Added by notification dependencies. If push notifications remain unused, review removal before production.
-- `com.taskmate.mobile.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`
+- `com.kesan0705.taskmate.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`
   - AndroidX/React Native internal receiver protection.
 - `com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE`
   - Added by bundled Google Play/analytics dependency chain. Review before production if no install attribution is used.
@@ -90,7 +91,7 @@ Explicitly removed from the final merged manifest:
 
 Component:
 
-- Service: `com.taskmate.mobile/.TaskMateAccessibilityService`
+- Service: `com.kesan0705.taskmate/com.taskmate.mobile.TaskMateAccessibilityService`
 - User-visible label: `TaskMate アプリ制限`
 - User-visible description: `集中モードまたはアンロックモード中にユーザーが選んだ制限アプリの起動だけを検知し、TaskMateへ戻る案内を表示します。画面内容、入力内容、メッセージ内容は取得しません。`
 - Accessibility config:

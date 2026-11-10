@@ -119,6 +119,12 @@ export default function SettingsPanel() {
     return <main className="settings-loading">設定を読み込んでいます...</main>;
   }
 
+  const selectedCharacterEntry =
+    characters.find((character) => character.name === settings.selectedCharacter) ||
+    (settings.selectedCharacter
+      ? { name: settings.selectedCharacter, builtIn: false }
+      : null);
+
   return (
     <main className="settings-panel">
       <header className="settings-panel__hero">
@@ -192,7 +198,7 @@ export default function SettingsPanel() {
       )}
 
       {activeTab === 'account' ? (
-        <AccountPanel selectedCharacter={settings.selectedCharacter} />
+        <AccountPanel selectedCharacter={selectedCharacterEntry} />
       ) : activeTab === 'calendar' ? (
         <GoogleCalendarPanel />
       ) : activeTab === 'appearance' ? (
@@ -517,6 +523,7 @@ export default function SettingsPanel() {
           settings={settings}
           title="長期プロジェクトレビュー"
           eyebrow="PROJECT REVIEW"
+          showQuickStart={false}
         />
       ) : activeTab === 'projects' ? (
         <>

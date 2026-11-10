@@ -1,24 +1,29 @@
 {
   "name": "taskmate-mobile",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "main": "index.js",
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/bottom-tabs": "^7.18.2",
     "@react-navigation/native": "^7.3.3",
     "@react-navigation/native-stack": "^7.17.5",
+    "@supabase/supabase-js": "^2.119.0",
     "@taskmate/core": "file:../packages/core",
     "expo": "~56.0.12",
+    "expo-crypto": "~56.0.5",
     "expo-file-system": "~56.0.8",
     "expo-image-picker": "~56.0.18",
     "expo-notifications": "~56.0.18",
+    "expo-secure-store": "~56.0.4",
     "expo-sqlite": "~56.0.5",
     "expo-status-bar": "~56.0.4",
     "expo-system-ui": "~56.0.5",
+    "expo-web-browser": "~56.0.6",
     "react": "19.2.3",
     "react-native": "0.85.3",
     "react-native-safe-area-context": "~5.7.0",
-    "react-native-screens": "4.25.2"
+    "react-native-screens": "4.25.2",
+    "react-native-url-polyfill": "^4.0.0"
   },
   "scripts": {
     "postinstall": "node scripts/patch-react-native-gradle-plugin.cjs",

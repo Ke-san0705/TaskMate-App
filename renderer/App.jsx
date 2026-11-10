@@ -4,7 +4,6 @@ import Character from './components/Character';
 import CharacterStatusBadge from './components/CharacterStatusBadge';
 import DialogueBubble from './components/DialogueBubble';
 import GoogleCalendarToday from './components/GoogleCalendarToday';
-import ProjectManagementMode from './components/ProjectManagementMode';
 import SettingsPanel from './components/SettingsPanel';
 import useCharacter from './hooks/useCharacter';
 import useCharacterBehavior from './hooks/useCharacterBehavior';
@@ -78,7 +77,6 @@ function MainView() {
   const [notification, setNotification] = useState(null);
   const [clickActive, setClickActive] = useState(false);
   const [clickDialogueActive, setClickDialogueActive] = useState(false);
-  const [projectCompactCollapsed, setProjectCompactCollapsed] = useState(false);
   const [dialogue, setDialogue] = useState('今日も一緒に進めよう！');
   const stageRef = useRef(null);
   const clickTimerRef = useRef(null);
@@ -243,7 +241,6 @@ function MainView() {
   const state = notification ? 'notifying' : clickActive ? 'clicked' : behavior.mood || 'calm';
   const showCharacter = settings.showCharacter !== false;
   const showDialogue = showCharacter || Boolean(notification);
-  const showProjectMode = !notification?.notificationOnly;
   const characterScale = settings.characterScale / 100;
   const bubbleScale = settings.bubbleScale / 100;
 
@@ -253,17 +250,9 @@ function MainView() {
     }
   }, [notification, showCharacter]);
 
-  useEffect(() => {
-    if (!showProjectMode) {
-      setProjectCompactCollapsed(false);
-    }
-  }, [showProjectMode]);
-
   return (
     <main
-      className={`mascot-root${showCharacter ? '' : ' mascot-root--app-mode'}${
-        showProjectMode ? ' mascot-root--project-mode' : ''
-      }`}
+      className={`mascot-root${showCharacter ? '' : ' mascot-root--app-mode'}`}
       data-mood={behavior.mood || 'calm'}
       style={{
         '--character-scale': characterScale,
@@ -290,13 +279,7 @@ function MainView() {
           />
         )}
 
-        <div
-          className={`bubble-stack${
-            showProjectMode && projectCompactCollapsed
-              ? ' bubble-stack--project-collapsed'
-              : ''
-          }`}
-        >
+        <div className="bubble-stack">
           {showCharacter && <CharacterStatusBadge mood={state} />}
 
           {showDialogue && (
@@ -327,14 +310,6 @@ function MainView() {
             />
           )}
 
-          {showProjectMode && (
-            <ProjectManagementMode
-              settings={settings}
-              onDialogue={chooseAndSetDialogue}
-              onCompactCollapsedChange={setProjectCompactCollapsed}
-              compact
-            />
-          )}
         </div>
       </section>
     </main>

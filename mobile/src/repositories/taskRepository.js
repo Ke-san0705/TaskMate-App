@@ -46,7 +46,7 @@ function taskToValues(task, input = {}) {
     task.createdAt,
     task.updatedAt,
     task.completedAt,
-    input.source === 'project' ? 'project' : 'manual',
+    ['project', 'muse'].includes(input.source) ? input.source : 'manual',
     typeof input.projectTaskId === 'string' ? input.projectTaskId : null,
     typeof input.projectId === 'string' ? input.projectId : null,
     typeof input.projectName === 'string' ? input.projectName : ''
@@ -146,7 +146,7 @@ async function updateTask(taskId, input, now = new Date()) {
       task.completed ? 1 : 0,
       task.updatedAt,
       task.completedAt,
-      source === 'project' ? 'project' : 'manual',
+      ['project', 'muse'].includes(source) ? source : 'manual',
       typeof projectTaskId === 'string' ? projectTaskId : null,
       typeof projectId === 'string' ? projectId : null,
       typeof projectName === 'string' ? projectName : '',

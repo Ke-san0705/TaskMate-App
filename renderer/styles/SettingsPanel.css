@@ -586,10 +586,145 @@ body:has(.settings-loading) {
   gap: 14px;
 }
 
+.account-form .task-form__actions {
+  grid-column: 1 / -1;
+}
+
+.account-login-guide {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.account-login-guide div {
+  padding: 12px;
+  border: 1px solid #e1d8cc;
+  border-radius: 12px;
+  background: #fbf7ef;
+}
+
+.account-login-guide strong,
+.account-login-guide span {
+  display: block;
+}
+
+.account-login-guide strong {
+  color: #2f2b27;
+  font-size: 13px;
+}
+
+.account-login-guide span {
+  margin-top: 4px;
+  color: #746d64;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.google-login-button {
+  grid-column: 1 / -1;
+  min-height: 46px;
+  border: 1px solid #d8d0c4;
+  border-radius: 999px;
+  background: #fff;
+  color: #2f2b27;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.google-login-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.account-form-divider {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #746d64;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.account-form-divider::before,
+.account-form-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e1d8cc;
+}
+
 .account-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.account-sync-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.account-sync-summary div {
+  padding: 12px;
+  border: 1px solid #dfd3c3;
+  border-radius: 12px;
+  background: #f7efe3;
+}
+
+.account-sync-summary div.is-syncing {
+  border-color: #d0bfab;
+  background: #fff8ed;
+}
+
+.account-sync-summary div.is-error {
+  border-color: #df9b8f;
+  background: #fff0ed;
+}
+
+.account-sync-summary div.is-partial {
+  border-color: #e0b45f;
+  background: #fff8e4;
+}
+
+.account-sync-summary span,
+.account-sync-summary strong,
+.account-sync-summary small {
+  display: block;
+}
+
+.account-sync-summary span {
+  color: #a45b25;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.account-sync-summary div.is-error span,
+.account-sync-summary div.is-error strong {
+  color: #9f2d1f;
+}
+
+.account-sync-summary div.is-partial span,
+.account-sync-summary div.is-partial strong {
+  color: #8a5a11;
+}
+
+.account-sync-summary strong {
+  margin-top: 5px;
+  color: #2f2b27;
+  font-size: 16px;
+}
+
+.account-sync-summary small {
+  margin-top: 4px;
+  color: #746d64;
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .cloud-character-list {
@@ -718,6 +853,8 @@ body:has(.settings-loading) {
 
   .task-form,
   .account-form,
+  .account-login-guide,
+  .account-sync-summary,
   .task-settings-item,
   .notification-rule,
   .calendar-list,

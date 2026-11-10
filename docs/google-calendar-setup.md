@@ -16,7 +16,7 @@ Bundle the public Supabase URL and publishable key in
 `renderer/config/publicRuntimeConfig.js`, and keep the Google client secret in
 the Supabase Google provider settings.
 
-Supabase must allow this redirect URL:
+Supabase must allow this desktop redirect URL:
 
 ```text
 http://127.0.0.1:53682/oauth-callback
@@ -28,7 +28,14 @@ when enabling Google Calendar sync on mobile:
 
 ```text
 taskmate://auth/callback
+taskmate://**
 ```
+
+For mobile-first releases, set Supabase **Authentication > URL Configuration >
+Site URL** to `taskmate://auth/callback` instead of `http://localhost:3000`.
+If the Site URL remains `http://localhost:3000` and the mobile redirect is not
+allow-listed, Google login can finish in the browser with
+`ERR_CONNECTION_REFUSED` on `localhost:3000`.
 
 See `docs/supabase-account-setup.md` for the Supabase provider setup.
 

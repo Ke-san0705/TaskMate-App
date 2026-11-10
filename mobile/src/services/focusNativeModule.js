@@ -110,6 +110,24 @@ async function getUnlockModeStatus() {
   return native.getUnlockModeStatus();
 }
 
+async function setWidgetPresentation({
+  characterId = '',
+  characterImageUri = '',
+  motivationMessage = '',
+  motivationDate = ''
+} = {}) {
+  if (!isAvailable() || typeof native.setWidgetPresentation !== 'function') {
+    return false;
+  }
+  await native.setWidgetPresentation(
+    characterId,
+    characterImageUri,
+    motivationMessage,
+    motivationDate
+  );
+  return true;
+}
+
 async function updateWidget() {
   if (isAvailable() && typeof native.updateWidget === 'function') {
     await native.updateWidget();
@@ -126,5 +144,6 @@ module.exports = {
   getUnlockModeStatus,
   setFocusMonitorState,
   setUnlockMonitorState,
+  setWidgetPresentation,
   updateWidget
 };
