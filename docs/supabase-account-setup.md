@@ -119,11 +119,24 @@ In Supabase Dashboard:
 1. Open **Authentication > Providers > Google**.
 2. Enable Google.
 3. Add the Google OAuth client ID and client secret used by Supabase.
-4. Add this redirect URL:
+4. Add these redirect URLs in **Authentication > URL Configuration**.
+
+Desktop:
 
 ```text
 http://127.0.0.1:53682/oauth-callback
 ```
+
+Mobile:
+
+```text
+taskmate://auth/callback
+taskmate://**
+```
+
+For mobile builds, set **Site URL** to `taskmate://auth/callback`. Leaving
+Site URL as `http://localhost:3000` can send Android Chrome to localhost after
+Google consent when the mobile deep link is not allow-listed.
 
 When users press **Googleで登録/ログイン**, TaskMate requests these scopes:
 

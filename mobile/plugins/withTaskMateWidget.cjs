@@ -8,7 +8,8 @@ const {
   withStringsXml
 } = require('@expo/config-plugins');
 
-const PACKAGE_PATH = path.join('com', 'taskmate', 'mobile');
+const NATIVE_PACKAGE = 'com.taskmate.mobile';
+const PACKAGE_PATH = path.join(...NATIVE_PACKAGE.split('.'));
 const NATIVE_SOURCE_ROOT = path.join(__dirname, 'android-native', 'java');
 
 const COLORS = {
@@ -16,7 +17,8 @@ const COLORS = {
   taskmate_widget_border: '#D5E1D3',
   taskmate_widget_primary: '#243427',
   taskmate_widget_muted: '#62705F',
-  taskmate_widget_accent: '#2F6138'
+  taskmate_widget_accent: '#2F6138',
+  taskmate_widget_warm: '#B84A1A'
 };
 
 const LAUNCHER_MIPMAP_NAMES = [
@@ -38,7 +40,7 @@ const STRINGS = {
   taskmate_widget_character: 'TaskMate character',
   taskmate_widget_count_default: '今日 0',
   taskmate_widget_subtitle_default: 'タップして開く',
-  taskmate_widget_description: 'TaskMateの今日の予定をホーム画面に表示します',
+  taskmate_widget_description: 'TaskMateの継続記録と今日の予定をホーム画面に表示します',
   taskmate_accessibility_label: 'TaskMate アプリ制限',
   taskmate_accessibility_description:
     '集中モードまたはアンロックモード中にユーザーが選んだ制限アプリの起動だけを検知し、TaskMateへ戻る案内を表示します。画面内容、入力内容、メッセージ内容は取得しません。',
@@ -157,6 +159,10 @@ function upsertByName(items, next) {
   }
 }
 
+function removeByName(items, name) {
+  return items.filter((item) => item?.$?.['android:name'] !== name);
+}
+
 function addNativeEntries(androidManifest) {
   for (const permission of REMOVED_PERMISSIONS) {
     upsertRemovedPermission(androidManifest, permission);
@@ -166,10 +172,14 @@ function addNativeEntries(androidManifest) {
   ensureLauncherQuery(androidManifest);
 
   const application = AndroidConfig.Manifest.getMainApplicationOrThrow(androidManifest);
-  application.receiver = application.receiver || [];
+  application.receiver = removeByName(
+    application.receiver || [],
+    '.TaskMateWidgetProvider'
+  );
+  application.receiver = removeByName(application.receiver, '.TaskMateBootReceiver');
   upsertByName(application.receiver, {
     $: {
-      'android:name': '.TaskMateWidgetProvider',
+      'android:name': `${NATIVE_PACKAGE}.TaskMateWidgetProvider`,
       'android:exported': 'true'
     },
     'intent-filter': [
@@ -188,7 +198,7 @@ function addNativeEntries(androidManifest) {
   });
   upsertByName(application.receiver, {
     $: {
-      'android:name': '.TaskMateBootReceiver',
+      'android:name': `${NATIVE_PACKAGE}.TaskMateBootReceiver`,
       'android:exported': 'false'
     },
     'intent-filter': [
@@ -198,10 +208,13 @@ function addNativeEntries(androidManifest) {
     ]
   });
 
-  application.service = application.service || [];
+  application.service = removeByName(
+    application.service || [],
+    '.TaskMateAccessibilityService'
+  );
   upsertByName(application.service, {
     $: {
-      'android:name': '.TaskMateAccessibilityService',
+      'android:name': `${NATIVE_PACKAGE}.TaskMateAccessibilityService`,
       'android:permission': 'android.permission.BIND_ACCESSIBILITY_SERVICE',
       'android:exported': 'true',
       'android:label': '@string/taskmate_accessibility_label'
@@ -222,10 +235,13 @@ function addNativeEntries(androidManifest) {
       }
     ]
   });
-  application.activity = application.activity || [];
+  application.activity = removeByName(
+    application.activity || [],
+    '.FocusBlockedActivity'
+  );
   upsertByName(application.activity, {
     $: {
-      'android:name': '.FocusBlockedActivity',
+      'android:name': `${NATIVE_PACKAGE}.FocusBlockedActivity`,
       'android:excludeFromRecents': 'true',
       'android:exported': 'false',
       'android:finishOnTaskLaunch': 'true',
@@ -242,15 +258,18 @@ function addWidgetPauseHook(mainActivityPath) {
     return;
   }
   const source = fs.readFileSync(mainActivityPath, 'utf8');
-  if (source.includes('TaskMateWidgetProvider.updateAll(this)')) {
+  const legacyHook = `\n  override fun onPause() {\n    super.onPause()\n    TaskMateWidgetProvider.updateAll(this)\n  }\n`;
+  const updated = source.replace(legacyHook, '\n');
+  if (updated.includes(`${NATIVE_PACKAGE}.TaskMateWidgetProvider.updateAll(this)`)) {
+    writeFileIfChanged(mainActivityPath, updated);
     return;
   }
   const target = '    super.onCreate(null)\n  }\n';
-  const replacement = `${target}\n  override fun onPause() {\n    super.onPause()\n    TaskMateWidgetProvider.updateAll(this)\n  }\n`;
-  if (!source.includes(target)) {
+  const replacement = `${target}\n  override fun onPause() {\n    super.onPause()\n    ${NATIVE_PACKAGE}.TaskMateWidgetProvider.updateAll(this)\n  }\n`;
+  if (!updated.includes(target)) {
     throw new Error('Could not find MainActivity.onCreate block for TaskMate widget hook.');
   }
-  fs.writeFileSync(mainActivityPath, source.replace(target, replacement));
+  writeFileIfChanged(mainActivityPath, updated.replace(target, replacement));
 }
 
 function addNativePackageHook(mainApplicationPath) {
@@ -258,16 +277,22 @@ function addNativePackageHook(mainApplicationPath) {
     return;
   }
   const source = fs.readFileSync(mainApplicationPath, 'utf8');
-  if (source.includes('add(TaskMateFocusPackage())')) {
+  const importLine = `import ${NATIVE_PACKAGE}.TaskMateFocusPackage`;
+  let updated = source;
+  if (!updated.includes(importLine)) {
+    updated = updated.replace(/^(package [^\n]+\n)/, `$1\n${importLine}\n`);
+  }
+  if (updated.includes('add(TaskMateFocusPackage())')) {
+    writeFileIfChanged(mainApplicationPath, updated);
     return;
   }
   const target = '          // add(MyReactNativePackage())\n';
-  if (!source.includes(target)) {
+  if (!updated.includes(target)) {
     return;
   }
-  fs.writeFileSync(
+  writeFileIfChanged(
     mainApplicationPath,
-    source.replace(target, '          add(TaskMateFocusPackage())\n')
+    updated.replace(target, '          add(TaskMateFocusPackage())\n')
   );
 }
 
@@ -282,7 +307,76 @@ function widgetBackgroundXml() {
 `;
 }
 
-function widgetLayoutXml() {
+function widgetCompactLayoutXml() {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/taskmate_widget_root"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:background="@drawable/taskmate_widget_background"
+  android:elevation="2dp"
+  android:gravity="center"
+  android:orientation="vertical"
+  android:padding="10dp">
+
+  <TextView
+    android:id="@+id/taskmate_widget_status"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:ellipsize="end"
+    android:gravity="center"
+    android:maxLines="1"
+    android:text="🔥 0日"
+    android:textColor="@color/taskmate_widget_warm"
+    android:textSize="20sp"
+    android:textStyle="bold" />
+
+  <ImageView
+    android:id="@+id/taskmate_widget_character"
+    android:layout_width="72dp"
+    android:layout_height="72dp"
+    android:layout_marginTop="2dp"
+    android:adjustViewBounds="true"
+    android:contentDescription="@string/taskmate_widget_character"
+    android:scaleType="fitCenter"
+    android:src="@drawable/taskmate_chara1_wait" />
+
+  <TextView
+    android:id="@+id/taskmate_widget_title"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="2dp"
+    android:ellipsize="end"
+    android:gravity="center"
+    android:maxLines="1"
+    android:text="@string/taskmate_widget_subtitle_default"
+    android:textColor="@color/taskmate_widget_primary"
+    android:textSize="13sp"
+    android:textStyle="bold" />
+
+  <TextView
+    android:id="@+id/taskmate_widget_progress"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="1dp"
+    android:ellipsize="end"
+    android:gravity="center"
+    android:maxLines="1"
+    android:text="@string/taskmate_widget_count_default"
+    android:textColor="@color/taskmate_widget_muted"
+    android:textSize="11sp"
+    android:textStyle="bold" />
+
+  <TextView
+    android:id="@+id/taskmate_widget_blocked"
+    android:layout_width="0dp"
+    android:layout_height="0dp"
+    android:text="" />
+</LinearLayout>
+`;
+}
+
+function widgetWideLayoutXml() {
   return `<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
   android:id="@+id/taskmate_widget_root"
@@ -296,8 +390,8 @@ function widgetLayoutXml() {
 
   <ImageView
     android:id="@+id/taskmate_widget_character"
-    android:layout_width="58dp"
-    android:layout_height="58dp"
+    android:layout_width="64dp"
+    android:layout_height="64dp"
     android:adjustViewBounds="true"
     android:contentDescription="@string/taskmate_widget_character"
     android:scaleType="fitCenter"
@@ -316,33 +410,34 @@ function widgetLayoutXml() {
       android:layout_height="wrap_content"
       android:ellipsize="end"
       android:maxLines="1"
-      android:text="@string/taskmate_widget_subtitle_default"
-      android:textColor="@color/taskmate_widget_accent"
-      android:textSize="12sp"
+      android:text="🔥 0日"
+      android:textColor="@color/taskmate_widget_warm"
+      android:textSize="18sp"
       android:textStyle="bold" />
 
     <TextView
       android:id="@+id/taskmate_widget_title"
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
-      android:layout_marginTop="2dp"
+      android:layout_marginTop="1dp"
       android:ellipsize="end"
-      android:maxLines="2"
+      android:maxLines="1"
       android:text="@string/taskmate_widget_subtitle_default"
       android:textColor="@color/taskmate_widget_primary"
-      android:textSize="15sp"
+      android:textSize="13sp"
       android:textStyle="bold" />
 
     <TextView
       android:id="@+id/taskmate_widget_progress"
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
-      android:layout_marginTop="2dp"
+      android:layout_marginTop="3dp"
       android:ellipsize="end"
       android:maxLines="1"
-      android:text="@string/taskmate_widget_count_default"
-      android:textColor="@color/taskmate_widget_muted"
-      android:textSize="12sp" />
+      android:text="@string/taskmate_widget_subtitle_default"
+      android:textColor="@color/taskmate_widget_primary"
+      android:textSize="12sp"
+      android:textStyle="bold" />
 
     <TextView
       android:id="@+id/taskmate_widget_blocked"
@@ -351,7 +446,7 @@ function widgetLayoutXml() {
       android:layout_marginTop="1dp"
       android:ellipsize="end"
       android:maxLines="1"
-      android:text=""
+      android:text="@string/taskmate_widget_count_default"
       android:textColor="@color/taskmate_widget_muted"
       android:textSize="11sp" />
   </LinearLayout>
@@ -359,15 +454,19 @@ function widgetLayoutXml() {
 `;
 }
 
+function widgetLayoutXml() {
+  return widgetWideLayoutXml();
+}
+
 function widgetInfoXml() {
   return `<?xml version="1.0" encoding="utf-8"?>
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
   android:description="@string/taskmate_widget_description"
-  android:initialLayout="@layout/taskmate_widget"
+  android:initialLayout="@layout/taskmate_widget_wide"
   android:minHeight="110dp"
   android:minResizeHeight="90dp"
-  android:minResizeWidth="180dp"
-  android:minWidth="180dp"
+  android:minResizeWidth="110dp"
+  android:minWidth="110dp"
   android:previewImage="@drawable/taskmate_chara1_wait"
   android:resizeMode="horizontal|vertical"
   android:updatePeriodMillis="1800000"
@@ -570,11 +669,20 @@ function withTaskMateWidget(config) {
       const mainRoot = path.join(androidRoot, 'app', 'src', 'main');
       const resRoot = path.join(mainRoot, 'res');
       const javaRoot = path.join(mainRoot, 'java', ...PACKAGE_PATH.split(path.sep));
-      const charaSource = path.join(
+      const appPackagePath = (modConfig.android?.package || 'com.kesan0705.taskmate').split('.');
+      const appJavaRoot = path.join(mainRoot, 'java', ...appPackagePath);
+      const chara1Source = path.join(
         modConfig.modRequest.projectRoot,
         'assets',
         'characters',
         'Chara1',
+        'wait.png'
+      );
+      const chara2Source = path.join(
+        modConfig.modRequest.projectRoot,
+        'assets',
+        'characters',
+        'Chara2',
         'wait.png'
       );
 
@@ -597,17 +705,29 @@ function withTaskMateWidget(config) {
         widgetBackgroundXml()
       );
       writeFileIfChanged(path.join(resRoot, 'layout', 'taskmate_widget.xml'), widgetLayoutXml());
+      writeFileIfChanged(
+        path.join(resRoot, 'layout', 'taskmate_widget_compact.xml'),
+        widgetCompactLayoutXml()
+      );
+      writeFileIfChanged(
+        path.join(resRoot, 'layout', 'taskmate_widget_wide.xml'),
+        widgetWideLayoutXml()
+      );
       writeFileIfChanged(path.join(resRoot, 'xml', 'taskmate_widget_info.xml'), widgetInfoXml());
       writeFileIfChanged(
         path.join(resRoot, 'xml', 'taskmate_accessibility_service.xml'),
         accessibilityServiceXml()
       );
       copyFileIfChanged(
-        charaSource,
+        chara1Source,
         path.join(resRoot, 'drawable-nodpi', 'taskmate_chara1_wait.png')
       );
-      addWidgetPauseHook(path.join(javaRoot, 'MainActivity.kt'));
-      addNativePackageHook(path.join(javaRoot, 'MainApplication.kt'));
+      copyFileIfChanged(
+        chara2Source,
+        path.join(resRoot, 'drawable-nodpi', 'taskmate_chara2_wait.png')
+      );
+      addWidgetPauseHook(path.join(appJavaRoot, 'MainActivity.kt'));
+      addNativePackageHook(path.join(appJavaRoot, 'MainApplication.kt'));
       for (const fileName of [
         'FocusBlockedActivity.kt',
         'TaskMateAccessibilityService.kt',

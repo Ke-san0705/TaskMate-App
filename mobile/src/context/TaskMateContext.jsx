@@ -12,6 +12,7 @@ const taskRepository = require('../repositories/taskRepository');
 const settingsRepository = require('../repositories/settingsRepository');
 const focusRepository = require('../repositories/focusRepository');
 const projectRepository = require('../repositories/projectRepository');
+const streakRepository = require('../repositories/streakRepository');
 const lifeStateRepository = require('../repositories/lifeStateRepository');
 const characterRepository = require('../repositories/characterRepository');
 const notificationService = require('../services/notificationService');
@@ -62,6 +63,11 @@ function findActiveTask(tasks, focusState) {
   return tasks.find((task) => task.id === taskId && !task.completed) || null;
 }
 
+function widgetCharacterImageUri(character) {
+  const source = character?.images?.wait;
+  return source && typeof source.uri === 'string' ? source.uri : '';
+}
+
 function TaskMateProvider({ children }) {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState('');
@@ -81,6 +87,9 @@ function TaskMateProvider({ children }) {
   });
   const [characters, setCharacters] = React.useState([]);
   const [selectedCharacter, setSelectedCharacter] = React.useState(null);
+  const [streak, setStreak] = React.useState(() => streakRepository.emptyStreak());
+  const settingsRef = React.useRef(null);
+  const selectedCharacterRef = React.useRef(null);
   const [undoItem, setUndoItem] = React.useState(null);
   const [clock, setClock] = React.useState(new Date());
   const [notificationTaskId, setNotificationTaskId] = React.useState(null);
@@ -108,6 +117,12 @@ function TaskMateProvider({ children }) {
   );
   const progress = React.useMemo(() => todayProgress(tasks), [tasks]);
 
+  const applySettings = React.useCallback((nextSettings) => {
+    settingsRef.current = nextSettings;
+    setSettings(nextSettings);
+    return nextSettings;
+  }, []);
+
   const refreshFocusPermissions = React.useCallback(async () => {
     const [accessibility, usageAccess] = await Promise.all([
       focusNativeModule.isAccessibilityServiceEnabled(),
@@ -125,7 +140,7 @@ function TaskMateProvider({ children }) {
   }, []);
 
   const refreshUnlockStatus = React.useCallback(async (nextUnlockMode = null) => {
-    const mode = normalizeUnlockModeSettings(nextUnlockMode || settings?.unlockMode);
+    const mode = normalizeUnlockModeSettings(nextUnlockMode || settingsRef.current?.unlockMode);
     try {
       const status = await focusNativeModule.getUnlockModeStatus();
       setUnlockStatus(status);
@@ -143,7 +158,28 @@ function TaskMateProvider({ children }) {
       warn('UnlockMode', 'status refresh failed', statusError);
       return fallback;
     }
-  }, [settings?.unlockMode]);
+  }, []);
+
+  const syncWidgetPresentation = React.useCallback(async (nextStreak, characterOverride = null) => {
+    let character = characterOverride || selectedCharacterRef.current;
+    if (!character) {
+      try {
+        character = await characterRepository.getSelectedCharacter();
+      } catch (characterError) {
+        warn('Widget', 'selected character fallback failed', characterError);
+      }
+    }
+    try {
+      await focusNativeModule.setWidgetPresentation({
+        characterId: character?.id || '',
+        characterImageUri: widgetCharacterImageUri(character),
+        motivationMessage: nextStreak?.motivationMessage || '',
+        motivationDate: nextStreak?.dateKey || ''
+      });
+    } catch (widgetError) {
+      warn('Widget', 'presentation sync failed', widgetError);
+    }
+  }, []);
 
   const syncNativeFocus = React.useCallback(async (nextFocusState, nextSettings) => {
     const activeSession = nextFocusState?.activeSession;
@@ -233,6 +269,7 @@ function TaskMateProvider({ children }) {
       characterRepository.getSelectedCharacter()
     ]);
     setCharacters(loadedCharacters);
+    selectedCharacterRef.current = currentCharacter;
     setSelectedCharacter(currentCharacter);
     return { loadedCharacters, currentCharacter };
   }, []);
@@ -257,14 +294,17 @@ function TaskMateProvider({ children }) {
       settingsRepository.readSettings()
     ]);
 
+    const loadedStreak = await streakRepository.rebuildDailyActivity(now);
+
     if (options.migrateLegacyFocus) {
       await migrateLegacyFocusTask(loadedTasks);
     }
 
     const loadedFocusState = await focusRepository.readFocusState(loadedTasks);
     setTasks(loadedTasks);
-    setSettings(loadedSettings);
+    applySettings(loadedSettings);
     setFocusState(loadedFocusState);
+    setStreak(loadedStreak);
     setClock(now);
 
     if (options.reconcileNotifications !== false) {
@@ -275,8 +315,18 @@ function TaskMateProvider({ children }) {
         );
     }
     await syncNativeFocus(loadedFocusState, loadedSettings);
-    return { loadedTasks, loadedSettings, loadedFocusState };
-  }, [migrateLegacyFocusTask, syncNativeFocus]);
+    await syncWidgetPresentation(loadedStreak);
+    return { loadedTasks, loadedSettings, loadedFocusState, loadedStreak };
+  }, [applySettings, migrateLegacyFocusTask, syncNativeFocus, syncWidgetPresentation]);
+
+  React.useEffect(() => {
+    if (loading || !streak?.dateKey || streak.dateKey === localDateKey(clock)) {
+      return;
+    }
+    refreshTasksAndFocus({ reconcileNotifications: false }).catch((dateError) => {
+      setError(messageFromError(dateError));
+    });
+  }, [clock, loading, refreshTasksAndFocus, streak?.dateKey]);
 
   const initialize = React.useCallback(async () => {
     setLoading(true);
@@ -467,7 +517,7 @@ function TaskMateProvider({ children }) {
       const nextSettings = await settingsRepository.updateSettings({
         defaultBlockedApps: selectedApps
       });
-      setSettings(nextSettings);
+      applySettings(nextSettings);
       await syncNativeFocus(nextFocus, nextSettings);
       await refreshTasksAndFocus({ reconcileNotifications: false });
       return nextFocus.activeSession;
@@ -495,20 +545,20 @@ function TaskMateProvider({ children }) {
     const nextSettings = await settingsRepository.updateSettings({
       defaultBlockedApps: nextApps.filter((app) => app.enabled)
     });
-    setSettings(nextSettings);
+    applySettings(nextSettings);
     await refreshTasksAndFocus({ reconcileNotifications: false });
     return nextApps;
   }
 
   async function updateSettings(partial) {
     const next = await settingsRepository.updateSettings(partial);
-    setSettings(next);
+    applySettings(next);
     await refreshTasksAndFocus();
     return next;
   }
 
   async function updateUnlockModeSettings(partial) {
-    const currentSettings = settings || await settingsRepository.readSettings();
+    const currentSettings = settingsRef.current || settings || await settingsRepository.readSettings();
     const currentMode = normalizeUnlockModeSettings(currentSettings.unlockMode);
     const nextModeInput = {
       ...currentMode,
@@ -523,7 +573,7 @@ function TaskMateProvider({ children }) {
     const nextSettings = await settingsRepository.updateSettings({
       unlockMode: validation.value
     });
-    setSettings(nextSettings);
+    applySettings(nextSettings);
     await syncNativeFocus(focusState, nextSettings);
     const latest = await refreshTasksAndFocus({ reconcileNotifications: false });
     return {
@@ -597,13 +647,15 @@ function TaskMateProvider({ children }) {
   async function selectCharacter(characterId) {
     const character = await characterRepository.selectCharacter(characterId);
     await updateSettings({ selectedCharacterId: characterId });
-    await loadCharacters();
+    const loaded = await loadCharacters();
+    await syncWidgetPresentation(streak, loaded.currentCharacter || character);
     return character;
   }
 
   async function createCustomCharacter(input) {
     const character = await characterRepository.createCustomCharacter(input);
-    await loadCharacters();
+    const loaded = await loadCharacters();
+    await syncWidgetPresentation(streak, loaded.currentCharacter);
     return character;
   }
 
@@ -613,7 +665,8 @@ function TaskMateProvider({ children }) {
       stateName,
       sourceUri
     );
-    await loadCharacters();
+    const loaded = await loadCharacters();
+    await syncWidgetPresentation(streak, loaded.currentCharacter);
     return character;
   }
 
@@ -622,7 +675,8 @@ function TaskMateProvider({ children }) {
       characterId,
       dialogues
     );
-    await loadCharacters();
+    const loaded = await loadCharacters();
+    await syncWidgetPresentation(streak, loaded.currentCharacter);
     return character;
   }
 
@@ -631,13 +685,15 @@ function TaskMateProvider({ children }) {
       characterId,
       profile
     );
-    await loadCharacters();
+    const loaded = await loadCharacters();
+    await syncWidgetPresentation(streak, loaded.currentCharacter);
     return character;
   }
 
   async function deleteCustomCharacter(characterId) {
     const character = await characterRepository.deleteCustomCharacter(characterId);
-    await loadCharacters();
+    const loaded = await loadCharacters();
+    await syncWidgetPresentation(streak, loaded.currentCharacter);
     return character;
   }
 
@@ -652,6 +708,8 @@ function TaskMateProvider({ children }) {
       STORAGE_KEYS.characters,
       STORAGE_KEYS.selectedCharacter
     ]);
+    settingsRef.current = null;
+    selectedCharacterRef.current = null;
     setUndoItem(null);
     await initialize();
   }
@@ -707,6 +765,7 @@ function TaskMateProvider({ children }) {
     setFocusTask,
     settings,
     startFocusSession,
+    streak,
     taskGroups,
     tasks,
     undoCompleteTask,

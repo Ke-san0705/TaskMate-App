@@ -16,7 +16,7 @@ const MOOD_LABELS = {
   clicked: '反応'
 };
 
-function CharacterView({ character, mood = 'calm', onPress, size = 180 }) {
+function CharacterView({ character, mood = 'calm', onPress, showStatus = true, size = 180 }) {
   const images = character?.images || {};
   const imageKey =
     mood === 'focus' || mood === 'focusing'
@@ -32,7 +32,7 @@ function CharacterView({ character, mood = 'calm', onPress, size = 180 }) {
       accessibilityRole="button"
       accessibilityLabel={`${character?.name || 'キャラクター'}に話しかける`}
       onPress={onPress}
-      style={styles.container}
+      style={[styles.container, { width: size }]}
     >
       <View style={[styles.imageFrame, { width: size, height: size }]}>
         {source ? (
@@ -42,7 +42,7 @@ function CharacterView({ character, mood = 'calm', onPress, size = 180 }) {
         )}
       </View>
       <Text style={styles.name}>{character?.name || 'TaskMate'}</Text>
-      <Text style={styles.mood}>{MOOD_LABELS[mood] || mood}</Text>
+      {showStatus ? <Text style={styles.mood}>{MOOD_LABELS[mood] || mood}</Text> : null}
     </Pressable>
   );
 }
@@ -68,7 +68,8 @@ const styles = StyleSheet.create({
   name: {
     color: colors.text,
     fontSize: 18,
-    fontWeight: '800'
+    fontWeight: '800',
+    textAlign: 'center'
   },
   mood: {
     color: colors.textMuted,

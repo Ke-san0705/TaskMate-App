@@ -129,6 +129,30 @@ class TaskMateFocusModule(
   }
 
   @ReactMethod
+  fun setWidgetPresentation(
+    characterId: String,
+    characterImageUri: String,
+    motivationMessage: String,
+    motivationDate: String,
+    promise: Promise
+  ) {
+    try {
+      reactContext.getSharedPreferences(FOCUS_PREFS, Context.MODE_PRIVATE)
+        .edit()
+        .putString(KEY_WIDGET_CHARACTER_ID, characterId)
+        .putString(KEY_WIDGET_CHARACTER_IMAGE_URI, characterImageUri)
+        .putString(KEY_WIDGET_MOTIVATION_MESSAGE, motivationMessage)
+        .putString(KEY_WIDGET_MOTIVATION_DATE, motivationDate)
+        .putLong(KEY_WIDGET_PRESENTATION_UPDATED_AT, System.currentTimeMillis())
+        .apply()
+      TaskMateWidgetProvider.updateAll(reactContext)
+      promise.resolve(true)
+    } catch (error: Throwable) {
+      promise.reject("taskmate_widget_presentation_failed", error)
+    }
+  }
+
+  @ReactMethod
   fun setUnlockMonitorState(
     enabled: Boolean,
     requiredMinutes: Double,
@@ -244,5 +268,10 @@ class TaskMateFocusModule(
     const val KEY_UNLOCK_BLOCKED_PACKAGES = "unlock_blocked_packages"
     const val KEY_UNLOCK_BLOCKED_NAMES = "unlock_blocked_names"
     const val KEY_UNLOCK_UPDATED_AT = "unlock_updated_at"
+    const val KEY_WIDGET_CHARACTER_ID = "widget_character_id"
+    const val KEY_WIDGET_CHARACTER_IMAGE_URI = "widget_character_image_uri"
+    const val KEY_WIDGET_MOTIVATION_MESSAGE = "widget_motivation_message"
+    const val KEY_WIDGET_MOTIVATION_DATE = "widget_motivation_date"
+    const val KEY_WIDGET_PRESENTATION_UPDATED_AT = "widget_presentation_updated_at"
   }
 }

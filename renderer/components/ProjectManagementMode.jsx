@@ -573,6 +573,7 @@ export default function ProjectManagementMode({
   onDialogue,
   onCompactCollapsedChange,
   compact = false,
+  showQuickStart = true,
   title = '長期タスク管理',
   eyebrow = 'LONG TERM TASKS'
 }) {
@@ -1596,118 +1597,120 @@ export default function ProjectManagementMode({
         </div>
       )}
 
-      <section className="project-panel project-quick-start" aria-label="かんたん作成">
-        <div className="project-panel__heading">
-          <div>
-            <h3>かんたん作成</h3>
-            <small>目的と期限だけ入れると、段階とTodoを仮作成します。</small>
-          </div>
-          <button type="button" onClick={() => {
-            setEditorPanel('project');
-            scrollEditorIntoView();
-          }}>
-            手入力で作る
-          </button>
-        </div>
-
-        <div className="project-template-grid" role="list" aria-label="テンプレート">
-          {QUICK_PLAN_TEMPLATES.map((template) => (
-            <button
-              key={template.id}
-              type="button"
-              className={quickPlanForm.templateId === template.id ? 'is-selected' : ''}
-              onClick={() => selectQuickTemplate(template.id)}
-            >
-              <strong>{template.name}</strong>
-              <span>{template.description}</span>
-            </button>
-          ))}
-        </div>
-
-        <form className="project-quick-form" onSubmit={submitQuickPlan}>
-          <label>
-            タスク名
-            <input
-              value={quickPlanForm.title}
-              onChange={(event) => setQuickPlanField('title', event.target.value)}
-              placeholder={selectedQuickTemplate.defaultTitle}
-            />
-          </label>
-          <label>
-            ジャンル
-            <select
-              value={quickPlanForm.categoryId}
-              onChange={(event) => setQuickPlanField('categoryId', event.target.value)}
-            >
-              <option value="">自動で選ぶ</option>
-              {projectState.categories.map((category) => (
-                <option key={category.id} value={category.id}>{category.name}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            開始日
-            <input
-              type="date"
-              value={quickPlanForm.startDate}
-              onChange={(event) => setQuickPlanField('startDate', event.target.value)}
-              onInput={(event) => setQuickPlanField('startDate', event.currentTarget.value)}
-            />
-          </label>
-          <label>
-            最終期限
-            <input
-              type="date"
-              value={quickPlanForm.deadline}
-              onChange={(event) => setQuickPlanField('deadline', event.target.value)}
-              onInput={(event) => setQuickPlanField('deadline', event.currentTarget.value)}
-              required
-            />
-          </label>
-          <label>
-            大変さ
-            <select
-              value={quickPlanForm.workload}
-              onChange={(event) => setQuickPlanField('workload', event.target.value)}
-            >
-              {Object.entries(QUICK_WORKLOADS).map(([id, workload]) => (
-                <option key={id} value={id}>{workload.label}</option>
-              ))}
-            </select>
-          </label>
-          <label className="project-quick-form__wide">
-            メモ
-            <textarea
-              rows="2"
-              value={quickPlanForm.notes}
-              onChange={(event) => setQuickPlanField('notes', event.target.value)}
-              placeholder="範囲、条件、気になることなど。空でも作れます。"
-            />
-          </label>
-          <label className="project-quick-toggle">
-            <input
-              type="checkbox"
-              checked={quickPlanForm.linkDependencies}
-              onChange={(event) => setQuickPlanField('linkDependencies', event.target.checked)}
-            />
-            <span>Todoを前提関係でつなぐ</span>
-          </label>
-
-          <div className="project-quick-preview" aria-label="作成プレビュー">
-            <strong>{quickPlanPreview.template.name}</strong>
-            <span>{quickPlanPreview.stageCount}段階 / {quickPlanPreview.taskCount}Todo / 約{formatMinutes(quickPlanPreview.totalMinutes)}</span>
+      {showQuickStart && (
+        <section className="project-panel project-quick-start" aria-label="かんたん作成">
+          <div className="project-panel__heading">
             <div>
-              {quickPlanPreview.stageTitles.map((stageTitle) => (
-                <em key={stageTitle}>{stageTitle}</em>
-              ))}
+              <h3>かんたん作成</h3>
+              <small>目的と期限だけ入れると、段階とTodoを仮作成します。</small>
             </div>
+            <button type="button" onClick={() => {
+              setEditorPanel('project');
+              scrollEditorIntoView();
+            }}>
+              手入力で作る
+            </button>
           </div>
 
-          <div className="project-form-grid__actions project-quick-form__actions">
-            <button type="submit">この内容で仮作成</button>
+          <div className="project-template-grid" role="list" aria-label="テンプレート">
+            {QUICK_PLAN_TEMPLATES.map((template) => (
+              <button
+                key={template.id}
+                type="button"
+                className={quickPlanForm.templateId === template.id ? 'is-selected' : ''}
+                onClick={() => selectQuickTemplate(template.id)}
+              >
+                <strong>{template.name}</strong>
+                <span>{template.description}</span>
+              </button>
+            ))}
           </div>
-        </form>
-      </section>
+
+          <form className="project-quick-form" onSubmit={submitQuickPlan}>
+            <label>
+              タスク名
+              <input
+                value={quickPlanForm.title}
+                onChange={(event) => setQuickPlanField('title', event.target.value)}
+                placeholder={selectedQuickTemplate.defaultTitle}
+              />
+            </label>
+            <label>
+              ジャンル
+              <select
+                value={quickPlanForm.categoryId}
+                onChange={(event) => setQuickPlanField('categoryId', event.target.value)}
+              >
+                <option value="">自動で選ぶ</option>
+                {projectState.categories.map((category) => (
+                  <option key={category.id} value={category.id}>{category.name}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              開始日
+              <input
+                type="date"
+                value={quickPlanForm.startDate}
+                onChange={(event) => setQuickPlanField('startDate', event.target.value)}
+                onInput={(event) => setQuickPlanField('startDate', event.currentTarget.value)}
+              />
+            </label>
+            <label>
+              最終期限
+              <input
+                type="date"
+                value={quickPlanForm.deadline}
+                onChange={(event) => setQuickPlanField('deadline', event.target.value)}
+                onInput={(event) => setQuickPlanField('deadline', event.currentTarget.value)}
+                required
+              />
+            </label>
+            <label>
+              大変さ
+              <select
+                value={quickPlanForm.workload}
+                onChange={(event) => setQuickPlanField('workload', event.target.value)}
+              >
+                {Object.entries(QUICK_WORKLOADS).map(([id, workload]) => (
+                  <option key={id} value={id}>{workload.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="project-quick-form__wide">
+              メモ
+              <textarea
+                rows="2"
+                value={quickPlanForm.notes}
+                onChange={(event) => setQuickPlanField('notes', event.target.value)}
+                placeholder="範囲、条件、気になることなど。空でも作れます。"
+              />
+            </label>
+            <label className="project-quick-toggle">
+              <input
+                type="checkbox"
+                checked={quickPlanForm.linkDependencies}
+                onChange={(event) => setQuickPlanField('linkDependencies', event.target.checked)}
+              />
+              <span>Todoを前提関係でつなぐ</span>
+            </label>
+
+            <div className="project-quick-preview" aria-label="作成プレビュー">
+              <strong>{quickPlanPreview.template.name}</strong>
+              <span>{quickPlanPreview.stageCount}段階 / {quickPlanPreview.taskCount}Todo / 約{formatMinutes(quickPlanPreview.totalMinutes)}</span>
+              <div>
+                {quickPlanPreview.stageTitles.map((stageTitle) => (
+                  <em key={stageTitle}>{stageTitle}</em>
+                ))}
+              </div>
+            </div>
+
+            <div className="project-form-grid__actions project-quick-form__actions">
+              <button type="submit">この内容で仮作成</button>
+            </div>
+          </form>
+        </section>
+      )}
 
       <section className="project-review-overview" aria-label="全体状況">
         <article className="project-kpi project-kpi--blue">

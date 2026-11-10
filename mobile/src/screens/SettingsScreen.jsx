@@ -1,6 +1,7 @@
 const React = require('react');
 const { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } = require('react-native');
 const { SafeAreaView } = require('react-native-safe-area-context');
+const AccordionSection = require('../components/AccordionSection');
 const ErrorBanner = require('../components/ErrorBanner');
 const TimeWheelInput = require('../components/TimeWheelInput');
 const UnlockModeSettingsCard = require('../components/UnlockModeSettingsCard');
@@ -89,7 +90,7 @@ function SettingsScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <ErrorBanner message={error} onClose={() => setError('')} />
         {message ? <Text style={styles.message}>{message}</Text> : null}
         <Text style={styles.eyebrow}>SETTINGS</Text>
@@ -182,7 +183,11 @@ function SettingsScreen({ navigation }) {
               />
             </View>
           </View>
-          <View style={styles.disclosureBox}>
+          <AccordionSection
+            title="アプリ制限の権限・説明"
+            summary={disclosureAccepted ? '利用説明に同意済み' : '有効化する前に確認してください'}
+            defaultExpanded={!disclosureAccepted}
+          >
             <Text style={styles.disclosureTitle}>{ACCESSIBILITY_DISCLOSURE.title}</Text>
             {ACCESSIBILITY_DISCLOSURE.paragraphs.map((paragraph) => (
               <Text key={paragraph} style={styles.disclosureText}>
@@ -215,7 +220,7 @@ function SettingsScreen({ navigation }) {
             >
               <Text style={styles.secondaryText}>ユーザー補助設定を開く</Text>
             </Pressable>
-          </View>
+          </AccordionSection>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="制限するアプリを選ぶ"

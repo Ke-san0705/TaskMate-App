@@ -52,6 +52,42 @@ function TaskRow({ task, onComplete, onOpen }) {
   );
 }
 
+function StreakCard({ streak }) {
+  const current = Math.max(0, Number(streak?.currentStreak || 0));
+  const longest = Math.max(0, Number(streak?.longestStreak || 0));
+  const total = Math.max(0, Number(streak?.totalActiveDays || 0));
+  const achievedToday = Boolean(streak?.achievedToday);
+  const title = current > 0
+    ? `🔥 ${current}日連続${achievedToday ? '！' : ''}`
+    : '🔥 今日から';
+  const status = achievedToday ? '今日も達成しました' : '今日も1つ終わらせて継続しよう';
+  const message = streak?.motivationMessage || (achievedToday ? '今日も達成！' : 'まずは今日の1つから。');
+
+  return (
+    <View
+      accessibilityLabel={`継続記録 ${current}日連続、自己ベスト${longest}日、累計${total}日`}
+      style={styles.streakCard}
+    >
+      <View style={styles.streakMain}>
+        <Text style={styles.streakTitle}>{title}</Text>
+        <Text style={styles.streakMessage}>{message}</Text>
+        <Text style={styles.streakStatus}>{status}</Text>
+      </View>
+      <View style={styles.streakStats}>
+        <View style={styles.streakStatItem}>
+          <Text style={styles.streakStatValue}>{longest}</Text>
+          <Text style={styles.streakStatLabel}>自己ベスト</Text>
+        </View>
+        <View style={styles.streakDivider} />
+        <View style={styles.streakStatItem}>
+          <Text style={styles.streakStatValue}>{total}</Text>
+          <Text style={styles.streakStatLabel}>累計</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 function HomeScreen({ navigation }) {
   const {
     clearFocusTask,
@@ -70,6 +106,7 @@ function HomeScreen({ navigation }) {
     setError,
     setFocusTask,
     settings,
+    streak,
     taskGroups,
     tasks,
     undoCompleteTask,
@@ -173,9 +210,9 @@ function HomeScreen({ navigation }) {
       <ScrollView contentContainerStyle={styles.container}>
         <ErrorBanner message={error} onClose={() => setError('')} />
         <View style={styles.header}>
-          <View>
+          <View style={styles.headerText}>
             <Text style={styles.eyebrow}>TASKMATE</Text>
-            <Text style={styles.title}>今日</Text>
+            <Text style={styles.title}>ホーム</Text>
           </View>
           <View style={styles.counter}>
             <Text style={styles.counterNumber}>{progress.completed} / {progress.total}</Text>
@@ -187,8 +224,15 @@ function HomeScreen({ navigation }) {
           <View style={styles.dialogueWrap}>
             <DialogueBubble text={dialogue} />
           </View>
-          <CharacterView character={selectedCharacter} mood={focusTask ? 'focus' : 'wait'} size={86} />
+          <CharacterView
+            character={selectedCharacter}
+            mood={focusTask ? 'focus' : 'wait'}
+            showStatus={false}
+            size={86}
+          />
         </View>
+
+        <StreakCard streak={streak} />
 
         {focusTask ? (
           <FocusTaskCard
@@ -300,6 +344,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 14
   },
+  headerText: {
+    flex: 1,
+    minWidth: 0
+  },
   focusHeader: {
     gap: 4
   },
@@ -336,7 +384,8 @@ const styles = StyleSheet.create({
     gap: 10
   },
   dialogueWrap: {
-    flex: 1
+    flex: 1,
+    minWidth: 0
   },
   nowCard: {
     padding: 16,
@@ -346,6 +395,70 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primarySoft,
     gap: 8,
     ...shadows.card
+  },
+  streakCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    padding: 14,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: '#E7D58B',
+    backgroundColor: '#FFF7D7',
+    ...shadows.soft
+  },
+  streakMain: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3
+  },
+  streakTitle: {
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: '900'
+  },
+  streakMessage: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '900'
+  },
+  streakStatus: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  streakStats: {
+    minWidth: 100,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: radius.sm,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border
+  },
+  streakStatItem: {
+    alignItems: 'center',
+    minWidth: 42
+  },
+  streakStatValue: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: '900'
+  },
+  streakStatLabel: {
+    color: colors.textMuted,
+    fontSize: 10,
+    fontWeight: '800'
+  },
+  streakDivider: {
+    width: 1,
+    height: 28,
+    marginHorizontal: 6,
+    backgroundColor: colors.border
   },
   nowTitle: {
     color: colors.text,

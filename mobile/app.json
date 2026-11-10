@@ -2,18 +2,18 @@
   "expo": {
     "name": "TaskMate Mobile",
     "slug": "taskmate-mobile",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "scheme": "taskmate",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "2.0.0"
+      "buildNumber": "2.1.0"
     },
     "android": {
-      "package": "com.taskmate.mobile",
-      "versionCode": 20,
+      "package": "com.kesan0705.taskmate",
+      "versionCode": 21,
       "permissions": [
         "POST_NOTIFICATIONS",
         "RECEIVE_BOOT_COMPLETED",

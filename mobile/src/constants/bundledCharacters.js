@@ -2,7 +2,7 @@ const BUNDLED_CHARACTERS = Object.freeze([
   {
     id: 'Chara1',
     name: 'Chara1',
-    description: 'PC版TaskMateと同じ既定キャラクターです。',
+    description: 'TaskMateに同梱されている既定キャラクターです。',
     builtIn: true,
     images: {
       wait: require('../../assets/characters/Chara1/wait.png'),
@@ -14,7 +14,7 @@ const BUNDLED_CHARACTERS = Object.freeze([
   {
     id: 'Chara2',
     name: 'Chara2',
-    description: 'PC版TaskMateに同梱されているもう一人のキャラクターです。',
+    description: 'TaskMateに同梱されているもう一人のキャラクターです。',
     builtIn: true,
     images: {
       wait: require('../../assets/characters/Chara2/wait.png'),
