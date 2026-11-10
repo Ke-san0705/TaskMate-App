@@ -1,7 +1,10 @@
 const React = require('react');
 const { AppState } = require('react-native');
 const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-const { client, configured, transport, endpoint, sessionStorage, authStorageKey } = require('../services/taskInboxClient');
+const { client, configured, transport, endpoint, sessionStorage, authStorageKey, projectUrl } = require('../services/taskInboxClient');
+const WebBrowser = require('expo-web-browser');
+const { createGitHubLogin } = require('../services/taskInboxOAuth');
+const signInWithGitHub = configured ? createGitHubLogin({ auth: client.auth, projectUrl, openAuthSession: WebBrowser.openAuthSessionAsync }) : null;
 const { createSessionGate } = require('../services/taskInboxTransport');
 const { createInboxSync } = require('../services/taskInboxSync');
 const { importInboxItem } = require('../repositories/taskInboxRepository');
@@ -130,6 +133,13 @@ function useTaskInbox({ ready, onImported }) {
       if (authError) throw new Error('ログインできません。メールアドレスとパスワードを確認してください。');
       if (!isCurrent()) return;
       current.current.userId = data.user.id; setSession(data.session); await updateEnabled(true);
+    }),
+    loginWithGitHub: () => action(async (isCurrent) => {
+      if (current.current.userId || !signInWithGitHub) return;
+      const next = await signInWithGitHub(() => isCurrent() && mounted.current);
+      if (!isCurrent() || !mounted.current) return;
+      if (!next) { setMessage('GitHubログインをキャンセルしました。'); return; }
+      current.current.userId = next.user.id; setSession(next); await updateEnabled(true);
     }),
     logout: () => action(logout), loadKeys: () => action(loadKeys),
     createKey: () => action(async (isCurrent) => {

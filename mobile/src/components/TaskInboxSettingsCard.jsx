@@ -49,7 +49,9 @@ function TaskInboxSettingsCard({ inbox }) {
           { text: 'キャンセル', style: 'cancel' }, { text: '削除する', style: 'destructive', onPress: inbox.clearRemote }
         ])}>サーバーの連携データを削除</Button>
       </> : <>
-        <Text style={styles.body}>作成済みの連携用アカウントでログインしてください。</Text>
+        <Text style={styles.body}>PCでGitHubログインを使っている場合は、同じGitHubアカウントでログインしてください。</Text>
+        <Button disabled={inbox.busy} onPress={inbox.loginWithGitHub}>{inbox.busy ? 'ログイン処理中…' : 'GitHubでログイン'}</Button>
+        <Text style={styles.body}>メールアドレスで作成したアカウントはこちら</Text>
         <TextInput accessibilityLabel="連携用メールアドレス" placeholder="メールアドレス" value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" textContentType="username" style={styles.input} />
         <TextInput accessibilityLabel="連携用パスワード" placeholder="パスワード" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" textContentType="password" style={styles.input} />
         <Button disabled={inbox.busy || !email.trim() || !password} onPress={async () => { await inbox.login(email, password); setPassword(''); }}>ログインして連携する</Button>
