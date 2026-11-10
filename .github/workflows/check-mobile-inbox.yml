@@ -1,0 +1,34 @@
+name: Check mobile task inbox
+
+on:
+  pull_request:
+  push:
+    branches: [main, 'feature/**', 'codex/**']
+    paths:
+      - 'mobile/**'
+      - 'packages/core/**'
+      - 'supabase/**'
+      - 'tests/taskInbox*.test.js'
+      - 'package*.json'
+      - '.github/workflows/check-mobile-inbox.yml'
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            mobile/package-lock.json
+      - run: npm.cmd ci
+      - run: npm.cmd --prefix mobile ci
+      - run: npm.cmd test
+      - run: npm.cmd run test:core
+      - run: npm.cmd --prefix mobile test
+      - run: npm.cmd --prefix mobile run export:android
+      - run: npx.cmd --yes deno check --no-lock supabase/functions/task-inbox/index.ts

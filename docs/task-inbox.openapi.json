@@ -1,0 +1,45 @@
+{
+  "openapi": "3.0.3",
+  "info": { "title": "TaskMate task inbox", "version": "1.0.0", "description": "Append tasks for one user's Android TaskMate inbox. Dates use Asia/Tokyo. A 202 response confirms server receipt; the phone imports at next open. Never invent an unknown deadline. Keep externalId stable when retrying." },
+  "servers": [{ "url": "https://YOUR_PROJECT_REF.supabase.co/functions/v1/task-inbox" }],
+  "paths": {
+    "/tasks": {
+      "post": {
+        "operationId": "addTaskMateTasks",
+        "summary": "Append tasks to TaskMate's inbox",
+        "description": "Write operation. Only creates tasks. Cannot read, edit, complete or delete existing tasks. At most 50 tasks and 64KB per request. At most 200 new tasks per key per day in Asia/Tokyo. Reuse externalId for retries.",
+        "security": [{ "IntegrationKey": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object", "additionalProperties": false, "required": ["tasks"],
+          "properties": { "tasks": { "type": "array", "minItems": 1, "maxItems": 50, "items": { "$ref": "#/components/schemas/Task" } } }
+        } } } },
+        "responses": {
+          "202": { "description": "Saved to server inbox; not necessarily imported on phone yet" },
+          "400": { "description": "Invalid task; entire batch rejected" },
+          "401": { "description": "Invalid or revoked key" },
+          "409": { "description": "externalId already exists with different content; no overwrite" },
+          "413": { "description": "Request exceeds 64KB" },
+          "429": { "description": "Daily task limit exceeded" },
+          "500": { "description": "Service unavailable; retry later using the same externalId" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": { "IntegrationKey": { "type": "http", "scheme": "bearer", "description": "Opaque tm_muse_ key from the user's TaskMate settings; configure via the client's secure credential store, never in conversation text or URLs." } },
+    "schemas": {
+      "Task": {
+        "type": "object", "additionalProperties": false, "required": ["externalId", "title", "date"],
+        "properties": {
+          "externalId": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "title": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "date": { "type": "string", "format": "date", "description": "Confirmed deadline as YYYY-MM-DD in Asia/Tokyo. Ask the user if unknown." },
+          "time": { "type": "string", "nullable": true, "pattern": "^$|^([01][0-9]|2[0-3]):[0-5][0-9]$" },
+          "description": { "type": "string", "maxLength": 1000 },
+          "genre": { "type": "string", "maxLength": 40 },
+          "priority": { "type": "string", "enum": ["high", "normal", "low"], "default": "normal" }
+        }
+      }
+    }
+  }
+}

@@ -2,6 +2,6 @@
 # Gateway JWT validation cannot accept the opaque tm_muse_ integration key.
 [functions.task-inbox]
 verify_jwt = false
+
 [functions.delete-account]
 verify_jwt = true
-

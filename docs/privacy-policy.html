@@ -78,7 +78,7 @@
     <main>
       <article>
         <h1>TaskMate Privacy Policy</h1>
-        <p class="updated">Last updated: 2026-09-08</p>
+        <p class="updated">Last updated: 2026-11-10</p>
 
         <p>This Privacy Policy explains how TaskMate Mobile ("TaskMate", "the app") handles user data. TaskMate is provided by Ke-san0705.</p>
         <p>TaskMate is a local-first task management and focus support app. It helps users choose what to work on now, start a focus session, and return to TaskMate when they open apps they selected as distracting during that session. TaskMate may also help users unlock selected apps after they spend a user-defined amount of time in selected requirement apps.</p>
@@ -93,7 +93,7 @@
           <li>App settings, including notification settings, quiet hours, reduced motion, selected character, and custom character settings.</li>
           <li>Widget state derived from tasks and focus session data.</li>
         </ul>
-        <p>This data is stored on the device and is not sent to a TaskMate server.</p>
+        <p>Existing local tasks and focus data are not uploaded. The optional external task inbox described below receives new tasks from a service you connect.</p>
 
         <h2>App Restriction And Accessibility Service</h2>
         <p>TaskMate includes an optional app restriction feature for focus sessions and Unlock Mode. If the user enables this feature, TaskMate uses the Android Accessibility Service API only while a focus session is active, or while Unlock Mode is enabled and the user-defined daily condition has not yet been reached.</p>
@@ -139,23 +139,23 @@
         <p>If the user chooses a custom character image, TaskMate may request access to the system photo picker or photo library only for selecting that image. TaskMate does not upload photos or media files to a server.</p>
 
         <h2>Network And Third-Party Services</h2>
-        <p>TaskMate v2 does not use accounts, cloud sync, advertising, in-app purchases, AI/LLM features, analytics tracking, or a TaskMate backend server.</p>
-        <p>Some Android or Expo/React Native dependencies may declare network-related or notification-related permissions as part of the app runtime. TaskMate's core app code does not send task, focus, Accessibility, Usage Access, Unlock Mode, or widget data to an external server.</p>
+        <p>Core task management does not require an account. The optional external task inbox uses Supabase Auth and a Supabase-hosted API/database. When you enable it, TaskMate authenticates your account and downloads tasks sent by your connected service, such as Muse. TaskMate does not upload your existing local tasks or use advertising, in-app purchases, AI/LLM inference, or analytics tracking.</p>
+        <p>The inbox stores your account identifier, integration-key hashes, source task identifiers, task title, description, date/time, genre, priority, and receipt status. TaskMate sends receipt acknowledgements after local storage succeeds. Authentication sessions are stored in the device's SecureStore. Only you and services holding your issued integration key can add to your inbox; that key cannot read, edit or delete your tasks. Muse and Supabase have their own privacy policies. Focus, Accessibility, Usage Access, Unlock Mode, widget data, and character images are not sent through this integration.</p>
 
         <h2>Data Sharing And Sale</h2>
         <p>TaskMate does not sell user data.</p>
-        <p>TaskMate does not share task data, focus data, selected blocked app data, Accessibility event data, Usage Access data, Unlock Mode data, photos, contacts, location, or messages with third parties.</p>
+        <p>If you connect the external task inbox, the tasks you send through that connection are processed by Supabase to deliver them to your device. TaskMate does not share focus data, selected blocked app data, Accessibility event data, Usage Access data, Unlock Mode data, photos, contacts, location, or messages through the inbox.</p>
 
         <h2>Data Retention And Deletion</h2>
         <p>TaskMate stores data locally until the user deletes it or uninstalls the app.</p>
         <p>Users can delete local TaskMate data from the app's settings screen. Deleting local data removes locally stored tasks, settings, focus session data, focus history, Unlock Mode settings, and character settings from the device. Uninstalling the app also removes app-local data according to Android system behavior.</p>
-        <p>TaskMate does not provide user accounts, so there is no account deletion process.</p>
+        <p>Logging out or deleting local data does not delete the server inbox or revoke its integration keys. Imported tasks remain on the device after logout or account switching. You can revoke individual keys or delete all server integration data from the external task settings. Task bodies are removed from the server after receipt acknowledgement; source identifiers, input fingerprints and receipt status remain to prevent duplicate imports. Pending tasks and duplicate-prevention records remain until you delete integration data or the associated account. Account deletion removes related inbox data; contact the developer for account deletion. The app does not create new accounts.</p>
 
         <h2>Children</h2>
         <p>TaskMate is not designed as an app directed primarily to children under 13. If a child uses TaskMate, a parent or guardian should review the app and this Privacy Policy.</p>
 
         <h2>Security</h2>
-        <p>TaskMate is designed to keep its core data local to the device. If future versions add online features, cloud sync, analytics, AI, advertising, or account features, this Privacy Policy and the Google Play Data Safety information will be updated before those features are released.</p>
+        <p>TaskMate keeps its core data local to the device. Optional inbox connections use HTTPS, account-based access rules, and hashed integration keys. Google Play Data Safety information must reflect this optional online feature before its release.</p>
 
         <h2>Changes To This Policy</h2>
         <p>This Privacy Policy may be updated when TaskMate changes how it handles data. The "Last updated" date will be revised when the policy changes.</p>
